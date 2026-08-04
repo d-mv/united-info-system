@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UIS — visual reference</title>
+<style>
+  /* ============================================================
+     Same tokens as core/theme.css (see file). The [data-preview]
+     attribute and the toggle bar below are NOT part of the
+     shipped app — the real app is prefers-color-scheme only.
+     They exist here purely so both states can be reviewed in
+     one mockup.
+     ============================================================ */
+  :root {
+    --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --text-size-display: 2rem;
+    --text-size-body: 0.9375rem;
+    --text-size-label: 0.6875rem;
+    --text-tracking-label: 0.04em;
+    --cell-size: 100px;
+
+    --color-bg: #F3F2EE;
+    --color-text: #1A1A18;
+    --color-text-muted: #6B6B66;
+    --color-hairline: #DEDDD7;
+    --color-accent: #BF4E30;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #181715;
+      --color-text: #EDEBE4;
+      --color-text-muted: #9A968C;
+      --color-hairline: #2E2C28;
+      --color-accent: #D6633F;
+    }
+  }
+
+  /* preview-only override, mimics choosing OS light/dark for demo purposes */
+  html[data-preview="light"] {
+    --color-bg: #F3F2EE;
+    --color-text: #1A1A18;
+    --color-text-muted: #6B6B66;
+    --color-hairline: #DEDDD7;
+    --color-accent: #BF4E30;
+  }
+  html[data-preview="dark"] {
+    --color-bg: #181715;
+    --color-text: #EDEBE4;
+    --color-text-muted: #9A968C;
+    --color-hairline: #2E2C28;
+    --color-accent: #D6633F;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: var(--text-size-body);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* ---- demo-only toggle bar ---- */
+  .preview-bar {
+    width: 800px;
+    max-width: 100%;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--color-hairline);
+    font-size: var(--text-size-label);
+    color: var(--color-text-muted);
+  }
+  .preview-bar .note { letter-spacing: var(--text-tracking-label); text-transform: uppercase; }
+  .preview-bar .controls button {
+    font-family: var(--font-body);
+    font-size: var(--text-size-label);
+    letter-spacing: var(--text-tracking-label);
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .preview-bar .controls button[aria-pressed="true"] {
+    color: var(--color-text);
+    text-decoration: underline;
+  }
+
+  /* ---- grid ---- */
+  #shell {
+    display: grid;
+    grid-template-columns: repeat(8, var(--cell-size));
+    grid-auto-rows: var(--cell-size);
+    gap: 0;
+  }
+
+  .module {
+    position: relative;
+    padding: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .module .label {
+    font-size: var(--text-size-label);
+    letter-spacing: var(--text-tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin: 0 0 10px;
+  }
+
+  .module .zoom-button {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-family: var(--font-body);
+    font-size: var(--text-size-label);
+    letter-spacing: var(--text-tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .module:hover .zoom-button,
+  .module:focus-within .zoom-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .module .zoom-button:hover { color: var(--color-text); }
+
+  .numeral {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .live-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    flex: none;
+  }
+  .live-dot--pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot--pulse { animation: none; }
+  }
+
+  /* ---- clock ---- */
+  .widget-clock .numeral {
+    font-size: var(--text-size-display);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  /* ---- weather ---- */
+  .widget-weather .numeral { font-size: 1.5rem; }
+  .widget-weather .condition { margin: 2px 0 auto; color: var(--color-text-muted); }
+  .widget-weather .freshness {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-size-label);
+    letter-spacing: var(--text-tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  /* ---- todo ---- */
+  .app-todo ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .app-todo li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-todo input[type="checkbox"] {
+    accent-color: var(--color-accent);
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
+  .app-todo li.done span { color: var(--color-text-muted); text-decoration: line-through; }
+  .app-todo li .live-dot { margin-right: -2px; }
+
+  /* ---- bookmarks ---- */
+  .app-bookmarks ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .app-bookmarks a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--text-size-body);
+  }
+  .app-bookmarks a:hover { text-decoration: underline; }
+  .app-bookmarks .domain {
+    display: block;
+    font-size: var(--text-size-label);
+    letter-spacing: var(--text-tracking-label);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="preview-bar">
+    <span class="note">Preview only — shipped app is prefers-color-scheme only, no in-app toggle</span>
+    <span class="controls">
+      <button type="button" data-set="">Auto</button>
+      <button type="button" data-set="light">Light</button>
+      <button type="button" data-set="dark">Dark</button>
+    </span>
+  </div>
+
+  <div id="shell">
+
+    <div class="module widget-clock" style="grid-column: 1 / span 2; grid-row: 1 / span 1;">
+      <p class="label">Clock</p>
+      <button class="zoom-button" type="button">Expand</button>
+      <div class="numeral" id="clock-time">
+        <span id="clock-text">14:32:07</span>
+        <span class="live-dot live-dot--pulse" aria-hidden="true"></span>
+      </div>
+    </div>
+
+    <div class="module widget-weather" style="grid-column: 1 / span 2; grid-row: 2 / span 2;">
+      <p class="label">Weather</p>
+      <button class="zoom-button" type="button">Expand</button>
+      <div class="numeral">14°</div>
+      <div class="condition">Partly cloudy</div>
+      <div class="freshness">
+        <span class="live-dot live-dot--pulse" aria-hidden="true"></span>
+        As of 14:20
+      </div>
+    </div>
+
+    <div class="module app-bookmarks" style="grid-column: 3 / span 2; grid-row: 1 / span 4;">
+      <p class="label">Bookmarks</p>
+      <button class="zoom-button" type="button">Expand</button>
+      <ul>
+        <li>
+          <a href="#">Refactoring UI notes</a>
+          <span class="domain">refactoringui.com</span>
+        </li>
+        <li>
+          <a href="#">OTP supervision trees</a>
+          <span class="domain">erlang.org</span>
+        </li>
+        <li>
+          <a href="#">View Transitions API</a>
+          <span class="domain">developer.mozilla.org</span>
+        </li>
+        <li>
+          <a href="#">Braun D45 archive</a>
+          <span class="domain">braun-design.de</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="module app-todo" style="grid-column: 5 / span 4; grid-row: 1 / span 4;">
+      <p class="label">Today</p>
+      <button class="zoom-button" type="button">Expand</button>
+      <ul>
+        <li>
+          <span class="live-dot" aria-hidden="true"></span>
+          <input type="checkbox" id="t1"><label for="t1">Finish grid engine placement logic</label>
+        </li>
+        <li>
+          <input type="checkbox" id="t2"><label for="t2">Wire up weather stale-while-revalidate</label>
+        </li>
+        <li>
+          <input type="checkbox" id="t3"><label for="t3">Review theme.css contrast on mobile</label>
+        </li>
+        <li class="done">
+          <input type="checkbox" id="t4" checked><label for="t4"><span>Draft serve.rb</span></label>
+        </li>
+        <li class="done">
+          <input type="checkbox" id="t5" checked><label for="t5"><span>Pick accent color</span></label>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+<script>
+  // clock tick
+  function tick() {
+    var el = document.getElementById('clock-text');
+    if (el) el.textContent = new Date().toLocaleTimeString([], { hour12: false });
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // demo-only preview toggle
+  var buttons = document.querySelectorAll('.controls button');
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var val = btn.getAttribute('data-set');
+      if (val) {
+        document.documentElement.setAttribute('data-preview', val);
+      } else {
+        document.documentElement.removeAttribute('data-preview');
+      }
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+      });
+    });
+  });
+  buttons[0].setAttribute('aria-pressed', 'true');
+</script>
+
+</body>
+</html>

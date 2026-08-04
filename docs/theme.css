@@ -1,0 +1,105 @@
+/* ==========================================================
+   Theme tokens — light / dark
+   Target path in repo: /core/theme.css
+   For production, inline this block into index.html <head>
+   (see architecture doc §7 — critical CSS inlined, no
+   external stylesheet round-trip before first paint).
+
+   Theme switching is prefers-color-scheme only — no manual
+   toggle, no data-theme attribute, no localStorage read for
+   theme. OS setting is the single source of truth.
+
+   Palette is deliberately restrained: neutral bg/text pairs,
+   one accent reserved for live/status indication only —
+   never decoration. No borders anywhere; modules separate
+   by padding alone (see architecture §5).
+
+   Naming: "shell" is the main grid container. "Apps" (todo,
+   bookmarks) are functional modules with real state/interaction.
+   "Widgets" (clock, weather) are display-first, minimal/no
+   interaction. "Module" is the umbrella term for either.
+   ========================================================== */
+
+:root {
+  /* type */
+  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-size-display: 2rem;     /* clock, other primary numerals */
+  --text-size-body: 0.9375rem;   /* default text size across modules */
+  --text-size-label: 0.6875rem;  /* metadata, timestamps, utility */
+  --text-tracking-label: 0.04em;
+
+  /* shell / grid (see architecture §5) */
+  --cell-size: 100px;
+  --grid-cols: 8;
+  --module-padding: 20px;
+
+  /* light theme — default */
+  --color-bg: #F3F2EE;
+  --color-text: #1A1A18;
+  --color-text-muted: #6B6B66;
+  --color-hairline: #DEDDD7;
+  --color-accent: #BF4E30;
+}
+
+/* OS-level preference, applies automatically when no manual override is set */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #181715;
+    --color-text: #EDEBE4;
+    --color-text-muted: #9A968C;
+    --color-hairline: #2E2C28;
+    --color-accent: #D6633F;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-size-body);
+}
+
+/* Clock / any ticking numeral — monospace + tabular-nums so
+   digit changes never shift surrounding layout. */
+.numeral {
+  font-family: var(--font-mono);
+  font-size: var(--text-size-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Metadata / timestamps / "as of" freshness labels */
+.label {
+  font-size: var(--text-size-label);
+  letter-spacing: var(--text-tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* The one signature accent — status/liveness only, never decorative */
+.live-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* Zoom-to-expand button — text, not an icon, per the textual-first
+   direction. Visibility itself is handled by :hover in the module's
+   own CSS (see architecture §9); this just styles the control. */
+.zoom-button {
+  font-family: var(--font-body);
+  font-size: var(--text-size-label);
+  letter-spacing: var(--text-tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.zoom-button:hover {
+  color: var(--color-text);
+}
