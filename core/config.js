@@ -3,14 +3,14 @@ import { storage } from './storage.js';
 export const DEFAULT_CONFIG = {
   grid: {
     cellSize: 100,
-    columns: 8,
+    columns: 12,
     padding: 20
   },
   modules: [
-    { id: 'clock', enabled: true, cols: 2, rows: 1, col: 1, row: 1 },
+    { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
     { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 2 },
-    { id: 'bookmarks', enabled: true, cols: 2, rows: 4, col: 3, row: 1 },
-    { id: 'todo', enabled: true, cols: 4, rows: 4, col: 5, row: 1 }
+    { id: 'bookmarks', enabled: true, cols: 4, rows: 4, col: 3, row: 1 },
+    { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 }
   ],
   secrets: {
     weather: {

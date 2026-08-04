@@ -24,14 +24,17 @@ export class ClockWidget extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <p class="label">Clock</p>
-      <button class="zoom-button" type="button" aria-label="Expand Clock"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+      <div class="block-header"> 
+        <p class="block-header__label">Clock</p>
+        <div class="block-header__actions">
+          <button class="button zoom-button" type="button" aria-label="Expand Clock"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+        </div>
+      </div>
       <div class="numeral clock-container" id="clock-time">
         <span class="clock-text">
           <span id="clock-text">--:--:--</span>
           <div class="live-dot live-dot--pulse" aria-hidden="true"/>
         </span>
-        
       </div>
     `;
   }

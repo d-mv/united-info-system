@@ -61,18 +61,23 @@ export class WeatherWidget extends HTMLElement {
     const timeStr = cache && cache.fetchedAt ? new Date(cache.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
 
     this.innerHTML = `
-      <p class="label">Weather</p>
-      <button class="setup-button" type="button" aria-label="Setup Secrets">Setup</button>
-      <button class="zoom-button" type="button" aria-label="Expand Weather"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+      <div class="block-header"> 
+        <p class="block-header__label">Weather</p>
+        <div class="block-header__actions">
+          <button id="setup-button" class="button action-button" type="button" aria-label="Setup Secrets">Setup</button>
+          <button class="button zoom-button" type="button" aria-label="Expand Weather"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+        </div>
+      </div>
+      <div class="weather-container">
       <div class="numeral">${temp}</div>
       <div class="condition">${condition}</div>
       <div class="freshness">
         As of ${timeStr}
         <span class="live-dot live-dot--pulse" aria-hidden="true"></span>
-      </div>
+      </div></div>
     `;
 
-    const setupBtn = this.querySelector('.setup-button');
+    const setupBtn = this.querySelector('#setup-button');
     if (setupBtn) {
       setupBtn.addEventListener('click', (e) => {
         e.stopPropagation();
