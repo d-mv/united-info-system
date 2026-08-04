@@ -14,8 +14,9 @@ export const DEFAULT_CONFIG = {
   ],
   secrets: {
     weather: {
+      provider: 'openmeteo',
       apiKey: '',
-      city: 'London',
+      city: 'Porto',
       units: 'metric'
     }
   }

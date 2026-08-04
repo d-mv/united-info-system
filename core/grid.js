@@ -31,7 +31,7 @@ export class GridEngine {
     this.shellElement.style['--cell-size'] = `${gridOpts.cellSize}px`;
     this.shellElement.style['--module-padding'] = `${gridOpts.padding}px`;
 
-    this.shellElement.children = [];
+    this.shellElement.replaceChildren();
 
     const enabledModules = (config.modules || []).filter(m => m.enabled !== false);
 

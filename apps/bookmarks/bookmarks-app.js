@@ -90,7 +90,7 @@ export class BookmarksApp extends HTMLElement {
         }
       </style>
       <p class="label">Bookmarks</p>
-      <button class="zoom-button" type="button" aria-label="Expand Bookmarks">Expand</button>
+      <button class="zoom-button" type="button" aria-label="Expand Bookmarks"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
       <ul>
         ${itemsHtml}
       </ul>

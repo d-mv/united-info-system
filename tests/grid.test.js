@@ -6,20 +6,28 @@ import { GridEngine } from '../core/grid.js';
 class MockElement {
   constructor(tagName = 'div') {
     this.tagName = tagName.toUpperCase();
-    this.children = [];
+    this._children = [];
     this.style = {};
     this.dataset = {};
     this.attributes = {};
   }
 
+  get children() {
+    return this._children;
+  }
+
+  replaceChildren(...nodes) {
+    this._children = [...nodes];
+  }
+
   appendChild(child) {
-    this.children.push(child);
+    this._children.push(child);
   }
 
   replaceChild(newChild, oldChild) {
-    const idx = this.children.indexOf(oldChild);
+    const idx = this._children.indexOf(oldChild);
     if (idx !== -1) {
-      this.children[idx] = newChild;
+      this._children[idx] = newChild;
     }
   }
 

@@ -71,7 +71,7 @@ test('ConfigManager updates config and secret settings', () => {
 
   configManager.setSecret('weather', { apiKey: 'test_key_123', city: 'Tokyo' });
   const weatherSecrets = configManager.getSecret('weather');
-  assert.deepStrictEqual(weatherSecrets, { apiKey: 'test_key_123', city: 'Tokyo', units: 'metric' });
+  assert.deepStrictEqual(weatherSecrets, { provider: 'openmeteo', apiKey: 'test_key_123', city: 'Tokyo', units: 'metric' });
 
   let updated = false;
   configManager.subscribe((cfg) => {

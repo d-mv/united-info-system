@@ -22,12 +22,13 @@
 
 :root {
   /* type */
-  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: 'Victor Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-body: var(--font-sans);
 
-  --text-size-display: 2rem;     /* clock, other primary numerals */
-  --text-size-body: 0.9375rem;   /* default text size across modules */
-  --text-size-label: 0.6875rem;  /* metadata, timestamps, utility */
+  --text-size-display: 3.2rem;     /* clock, other primary numerals */
+  --text-size-body: 1.5rem;   /* default text size across modules */
+  --text-size-label: 1.1rem;  /* metadata, timestamps, utility */
   --text-tracking-label: 0.04em;
 
   /* shell / grid (see architecture §5) */
@@ -54,16 +55,29 @@
   }
 }
 
+html {
+  font-size: 62.5%;
+  font-family: var(--font-sans);
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: var(--text-size-body);
+}
+
+button, input, select, textarea {
+  font-family: var(--font-sans);
 }
 
 /* Clock / any ticking numeral — monospace + tabular-nums so
    digit changes never shift surrounding layout. */
+widget-clock,
+.widget-clock,
+#clock-time,
+#clock-text,
 .numeral {
   font-family: var(--font-mono);
   font-size: var(--text-size-display);
@@ -87,9 +101,9 @@ body {
   background: var(--color-accent);
 }
 
-/* Zoom-to-expand button — text, not an icon, per the textual-first
-   direction. Visibility itself is handled by :hover in the module's
-   own CSS (see architecture §9); this just styles the control. */
+/* Zoom-to-expand button — uses assets/zoom_icon.svg. Visibility itself is
+   handled by :hover in the module's own CSS (see architecture §9);
+   this just styles the control. */
 .zoom-button {
   font-family: var(--font-body);
   font-size: var(--text-size-label);
@@ -99,7 +113,24 @@ body {
   background: none;
   border: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+  height: 20px;
 }
 .zoom-button:hover {
   color: var(--color-text);
+}
+.zoom-button img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+@media (prefers-color-scheme: dark) {
+  .zoom-button img {
+    filter: invert(1);
+  }
 }

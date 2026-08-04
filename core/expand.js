@@ -17,11 +17,13 @@ export function setupExpandController() {
       if (isExpanded) {
         moduleEl.classList.remove('expanded');
         document.body.classList.remove('modal-open');
-        zoomBtn.textContent = 'Expand';
+        const label = zoomBtn.getAttribute('aria-label');
+        if (label) zoomBtn.setAttribute('aria-label', label.replace('Collapse', 'Expand'));
       } else {
         moduleEl.classList.add('expanded');
         document.body.classList.add('modal-open');
-        zoomBtn.textContent = 'Collapse';
+        const label = zoomBtn.getAttribute('aria-label');
+        if (label) zoomBtn.setAttribute('aria-label', label.replace('Expand', 'Collapse'));
       }
     };
 
@@ -40,7 +42,10 @@ export function setupExpandController() {
           expandedMod.classList.remove('expanded');
           document.body.classList.remove('modal-open');
           const zoomBtn = expandedMod.querySelector('.zoom-button');
-          if (zoomBtn) zoomBtn.textContent = 'Expand';
+          if (zoomBtn) {
+            const label = zoomBtn.getAttribute('aria-label');
+            if (label) zoomBtn.setAttribute('aria-label', label.replace('Collapse', 'Expand'));
+          }
         };
 
         if (document.startViewTransition) {

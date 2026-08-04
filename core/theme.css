@@ -2,14 +2,119 @@
    United InfoSystem (UIS) — Design System Tokens & Base Styles
    ========================================================== */
 
+/* Font Imports */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-ThinItalic.ttf") format("truetype");
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-LightItalic.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter_18pt-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-ThinItalic.ttf") format("truetype");
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/VictorMono-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   /* Typography */
-  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono:
+    "Victor Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-body: var(--font-sans);
 
-  --text-size-display: 2rem;     /* Clock, key indicators */
-  --text-size-body: 0.9375rem;   /* Default body text */
-  --text-size-label: 0.6875rem;  /* Metadata, labels */
+  --text-size-display: 3.2rem; /* Clock, key indicators */
+  --text-size-body: 1.5rem; /* Default body text */
+  --text-size-label: 1.1rem; /* Metadata, labels */
   --text-tracking-label: 0.04em;
 
   /* Shell / Grid Defaults */
@@ -18,23 +123,28 @@
   --module-padding: 20px;
 
   /* Light Theme — Default */
-  --color-bg: #F3F2EE;
-  --color-text: #1A1A18;
-  --color-text-muted: #6B6B66;
-  --color-hairline: #DEDDD7;
-  --color-accent: #BF4E30;
+  --color-bg: #f3f2ee;
+  --color-text: #1a1a18;
+  --color-text-muted: #6b6b66;
+  --color-hairline: #deddd7;
+  --color-accent: #bf4e30;
   --color-card-bg: rgba(255, 255, 255, 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #181715;
-    --color-text: #EDEBE4;
-    --color-text-muted: #9A968C;
-    --color-hairline: #2E2C28;
-    --color-accent: #D6633F;
+    --color-text: #edebe4;
+    --color-text-muted: #9a968c;
+    --color-hairline: #2e2c28;
+    --color-accent: #d6633f;
     --color-card-bg: rgba(0, 0, 0, 0.2);
   }
+}
+
+html {
+  font-size: 62.5%;
+  font-family: var(--font-sans);
 }
 
 * {
@@ -45,13 +155,20 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   font-size: var(--text-size-body);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 40px 20px 80px;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans);
 }
 
 :focus-visible {
@@ -87,9 +204,12 @@ body {
 .module .zoom-button,
 .module .setup-button {
   position: absolute;
-  top: 16px;
+  font-size: 1rem;
+  padding-inline: .8rem;
+  display: flex;
+  top: 2.1rem;
+  font-weight: 300;
   font-family: var(--font-body);
-  font-size: var(--text-size-label);
   letter-spacing: var(--text-tracking-label);
   text-transform: uppercase;
   color: var(--color-text-muted);
@@ -98,11 +218,22 @@ body {
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.module .zoom-button { right: 16px; }
-.module .setup-button { right: 65px; }
+.module .zoom-button {
+  right: 16px;
+  top: 1.8rem;
+}
+.module .setup-button {
+  right: 44px;
+}
 
 .module:hover .zoom-button,
 .module:hover .setup-button,
@@ -117,10 +248,45 @@ body {
   color: var(--color-text);
 }
 
+.module .zoom-button img,
+.zoom-button img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .module .zoom-button img,
+  .zoom-button img {
+    filter: invert(1);
+  }
+}
+
+widget-clock,
+.widget-clock,
 .numeral {
   font-family: var(--font-mono);
   font-size: var(--text-size-display);
-  font-variant-numeric: tabular-nums;
+}
+
+.widget-clock.expanded .clock-container .clock-text {
+  font-size: 17dvw;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  height: 100%;
+}
+
+.clock-text {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+}
+
+.clock-container {
+  flex: 1;
 }
 
 .live-dot {
@@ -132,17 +298,30 @@ body {
   flex: none;
 }
 
+.freshness {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+}
+
 .live-dot--pulse {
   animation: pulse 2s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live-dot--pulse { animation: none; }
+  .live-dot--pulse {
+    animation: none;
+  }
 }
 
 /* Skeleton Loading State */

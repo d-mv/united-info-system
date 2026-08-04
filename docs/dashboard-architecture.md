@@ -232,7 +232,7 @@ Tokens live in `core/theme.css` (design draft finalized — see file). Summary:
 - **Palette:** warm off-white / warm near-black bg-text pairs for light and dark, not stark white/pure black. One accent (`#BF4E30` light, `#D6633F` dark) reserved strictly for live/status indication — clock ticking, data freshness, due-today — never decoration. Both muted-text pairs verified at WCAG AA (4.77:1 light, 6.07:1 dark).
 - **Type:** system sans stack for body/labels (zero network cost, no font file to fetch). Monospace with `font-variant-numeric: tabular-nums` for the clock and any ticking value, so digit changes don't shift layout.
 - **Signature element:** a single 5px accent dot (`.live-dot`) — the one deliberate splash of color, used nowhere else. Consistent with "spend your boldness in one place" — everything around it stays quiet.
-- **Zoom button is plain text**, no icon — matches the textual-first, no-graphics direction throughout.
+- **Zoom button uses `assets/zoom_icon.svg`**, providing a consistent SVG icon for expansion affordance across modules.
 
 **Switching mechanism:** `prefers-color-scheme` only, decided for v1 — no manual toggle, no `data-theme` attribute, no `localStorage` read for theme. The OS setting is the single source of truth, which also means no anti-flash script is needed in `<head>` (there's nothing to flash — the media query resolves before first paint regardless). Simpler for now; a manual override can be layered on later without disturbing these tokens if it turns out to be wanted.
 

@@ -8,7 +8,9 @@
 <style>
   /* Critical CSS inlined for fast first paint */
   :root {
-    --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: 'Victor Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --font-body: var(--font-sans);
     --color-bg: #F3F2EE;
     --color-text: #1A1A18;
   }
@@ -18,11 +20,21 @@
       --color-text: #EDEBE4;
     }
   }
+  html {
+    font-size: 62.5%;
+    font-family: var(--font-sans);
+  }
   body {
     margin: 0;
     background: var(--color-bg);
     color: var(--color-text);
-    font-family: var(--font-body);
+    font-family: var(--font-sans);
+  }
+  button, input, select, textarea {
+    font-family: var(--font-sans);
+  }
+  widget-clock, .widget-clock, #clock-time, #clock-text {
+    font-family: var(--font-mono);
   }
 </style>
 </head>

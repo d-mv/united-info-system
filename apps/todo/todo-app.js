@@ -124,7 +124,7 @@ export class TodoApp extends HTMLElement {
         }
       </style>
       <p class="label">Today</p>
-      <button class="zoom-button" type="button" aria-label="Expand Tasks">Expand</button>
+      <button class="zoom-button" type="button" aria-label="Expand Tasks"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
       <input type="text" class="add-todo-input" placeholder="+ Add task..." aria-label="Add new task">
       <ul>
         ${itemsHtml}
