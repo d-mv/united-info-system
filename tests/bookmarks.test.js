@@ -45,7 +45,7 @@ test('BookmarksApp renders bookmarks, add button, zoom button, and subscribes to
 
   app.connectedCallback();
   assert.ok(app.innerHTML.includes('Bookmarks'));
-  assert.ok(app.innerHTML.includes('add-button'));
+  assert.ok(app.innerHTML.includes('id="add"'));
   assert.ok(app.innerHTML.includes('zoom-button'));
   assert.ok(app.innerHTML.includes('MDN Web Docs'));
   assert.ok(app.innerHTML.includes('developer.mozilla.org'));
@@ -94,12 +94,12 @@ test('BookmarksApp toggles add and edit forms during rendering', async () => {
   };
 
   app.connectedCallback();
-  assert.ok(!app.innerHTML.includes('add-bookmark-form'));
+  assert.ok(!app.innerHTML.includes('id="bookmark-form"'));
 
   // Toggle add mode
   app.isAdding = true;
   app.render();
-  assert.ok(app.innerHTML.includes('add-bookmark-form'));
+  assert.ok(app.innerHTML.includes('id="bookmark-form"'));
 
   // Toggle edit mode for b1
   app.isAdding = false;

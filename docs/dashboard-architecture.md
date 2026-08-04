@@ -49,7 +49,7 @@ No `src/`, no `dist/`. What's on disk is what runs.
 
 ## 3. Runtime Model
 
-- Served via `serve.rb` — a ~100-line, zero-dependency Ruby script (stdlib `socket` only, no gems, no `npx`/Node, no Python) that serves static files with correct MIME types and blocks path traversal. `ruby serve.rb [port] [root]`.
+- Served via `./start.sh` (or `ruby start.sh [port] [root]`) — a ~100-line, zero-dependency Ruby script (stdlib `socket` only, no gems, no `npx`/Node, no Python) that serves static files with correct MIME types and blocks path traversal.
 - Real ES modules (`<script type="module" src="/core/grid.js">`), real `import`/`export`. No bundler, no transpilation. This works because we're on `http://localhost:PORT`, not `file://`.
 - Browser homepage is set to `http://localhost:PORT`. See §12 for the "who keeps the server running" question — it's a real gap worth deciding on deliberately.
 
@@ -103,7 +103,11 @@ customElements.define('widget-clock', ClockWidget);
 | `defaultCol` / `defaultRow` | 1-indexed default placement |
 | `expandable` | whether the hover-zoom-to-fullpage affordance applies |
 
-Per your spec: clock = `2×1` top-left (`col:1,row:1`), todo = `4×4` top-right.
+Standard modules in the 12-column layout:
+- `clock`: `2×2` (`col: 1, row: 1`)
+- `weather`: `2×2` (`col: 1, row: 2`)
+- `bookmarks`: `4×4` (`col: 3, row: 1`)
+- `todo`: `6×4` (`col: 7, row: 1`)
 
 ---
 
@@ -213,15 +217,17 @@ zoomButton.addEventListener('click', () => {
 
 ---
 
-## 10. Weather Widget — Network Handling
+## 10. Weather Widget — Multi-Provider Network Handling
 
 Since this may run on protected/air-gapped networks, weather must fail quietly:
 
-1. On mount, render last-known cached reading from `dashboard:weather:cache` immediately (stale-while-revalidate).
-2. Fetch in the background with a short timeout (~3s).
-3. On success: update cache + DOM.
-4. On failure/timeout: leave the stale reading visible, optionally with a subtle "as of [time]" note — never a blocking spinner, never an error state that competes visually with the rest of the dashboard.
-5. API endpoint + key read from `config.local.json`, not hardcoded, so the provider is swappable.
+1. **Provider Selection:** Supports `openmeteo` (default; free, no API key required) and `openweathermap` (requires API key).
+2. **Open-Meteo Flow:** Resolves city name to coordinates via Geocoding API (`geocoding-api.open-meteo.com/v1/search`), then queries forecast (`api.open-meteo.com/v1/forecast`) and maps WMO codes to human-readable weather conditions via `mapWmoCodeToCondition`.
+3. On mount, render last-known cached reading from `dashboard:weather:cache` immediately (stale-while-revalidate).
+4. Fetch in the background with a short timeout (~3s) using `AbortController`.
+5. On success: update cache + DOM.
+6. On failure/timeout: leave the stale reading visible, with a subtle "As of [time]" note — never a blocking spinner, never an error state that competes visually with the rest of the dashboard.
+7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`.
 
 ---
 
@@ -242,7 +248,7 @@ Tokens live in `core/theme.css` (design draft finalized — see file). Summary:
 
 Decided: no launchd agent, no auto-start. The static server is started manually per session.
 
-- Document a single copy-pasteable command in `README.md`: `ruby serve.rb 8000`. No wrapper script required unless you want a fish abbreviation later for convenience.
+- Document a single copy-pasteable command in `README.md`: `./start.sh 8000`. No wrapper script required unless you want a fish abbreviation later for convenience.
 - Practical implication: the browser homepage will only load correctly if the server happens to be running. Worth a one-line note in the README (and maybe a friendly "server not running" fallback message baked into `index.html` via a fetch-self health check, or just accepted as a known rough edge for v1) — your call whether that's worth the complexity now or later.
 
 ---

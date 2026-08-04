@@ -4,7 +4,7 @@ export const DEFAULT_TODOS = [
   { id: 't1', text: 'Finish grid engine placement logic', done: false, active: true },
   { id: 't2', text: 'Wire up weather stale-while-revalidate', done: false },
   { id: 't3', text: 'Review theme.css contrast on mobile', done: false },
-  { id: 't4', text: 'Draft serve.rb', done: true },
+  { id: 't4', text: 'Draft start.sh', done: true },
   { id: 't5', text: 'Pick accent color', done: true }
 ];
 

@@ -2,10 +2,10 @@
 # frozen_string_literal: true
 
 # Zero-dependency static file server. Stdlib only (socket + no gems).
-# Usage: ruby serve.rb [port] [root]
-#   ruby serve.rb            -> serves ./ on port 8000
-#   ruby serve.rb 3000       -> serves ./ on port 3000
-#   ruby serve.rb 3000 ./www -> serves ./www on port 3000
+# Usage: ./start.sh [port] [root]
+#   ./start.sh            -> serves ./ on port 8000
+#   ./start.sh 3000       -> serves ./ on port 3000
+#   ./start.sh 3000 ./www -> serves ./www on port 3000
 
 require 'socket'
 require 'time'

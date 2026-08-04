@@ -6,11 +6,11 @@ import net from 'node:net';
 import path from 'node:path';
 
 const PORT = 8899;
-const SERVER_PATH = path.resolve('serve.rb');
+const SERVER_PATH = path.resolve('start.sh');
 
 function startServer() {
   return new Promise((resolve, reject) => {
-    const serverProc = spawn('ruby', [SERVER_PATH, String(PORT)], {
+    const serverProc = spawn(SERVER_PATH, [String(PORT)], {
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -34,7 +34,7 @@ function startServer() {
   });
 }
 
-test('serve.rb serves static files with correct MIME types and headers', async () => {
+test('start.sh serves static files with correct MIME types and headers', async () => {
   const proc = await startServer();
   try {
     const res = await new Promise((resolve, reject) => {
@@ -53,12 +53,12 @@ test('serve.rb serves static files with correct MIME types and headers', async (
   }
 });
 
-test('serve.rb blocks path traversal attempts', async () => {
+test('start.sh blocks path traversal attempts', async () => {
   const proc = await startServer();
   try {
     const res = await new Promise((resolve, reject) => {
       const socket = net.connect(PORT, '127.0.0.1', () => {
-        socket.write("GET /../serve.rb HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        socket.write("GET /../start.sh HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
       });
       let responseData = '';
       socket.on('data', chunk => responseData += chunk.toString());

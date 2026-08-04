@@ -54,7 +54,7 @@ test('ConfigManager generates default config on cold boot', () => {
   const config = configManager.get();
 
   assert.ok(config);
-  assert.strictEqual(config.grid.columns, 8);
+  assert.strictEqual(config.grid.columns, 12);
   assert.strictEqual(config.grid.cellSize, 100);
   assert.ok(Array.isArray(config.modules));
   assert.strictEqual(config.modules.length, 4);
@@ -62,7 +62,7 @@ test('ConfigManager generates default config on cold boot', () => {
   // Assert stored in localStorage
   const rawStored = localStorage.getItem('dashboard:config');
   assert.ok(rawStored);
-  assert.strictEqual(JSON.parse(rawStored).grid.columns, 8);
+  assert.strictEqual(JSON.parse(rawStored).grid.columns, 12);
 });
 
 test('ConfigManager updates config and secret settings', () => {
