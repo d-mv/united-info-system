@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>United InfoSystem (UIS)</title>
+<link rel="stylesheet" href="/core/theme.css">
+<style>
+  /* Critical CSS inlined for fast first paint */
+  :root {
+    --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --color-bg: #F3F2EE;
+    --color-text: #1A1A18;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #181715;
+      --color-text: #EDEBE4;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+  }
+</style>
+</head>
+<body>
+
+  <div id="shell"></div>
+
+  <script type="module">
+    import { configManager } from '/core/config.js';
+    import { GridEngine } from '/core/grid.js';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const engine = new GridEngine();
+      await engine.init();
+    });
+  </script>
+
+</body>
+</html>

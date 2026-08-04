@@ -1,0 +1,212 @@
+/* ==========================================================
+   United InfoSystem (UIS) — Design System Tokens & Base Styles
+   ========================================================== */
+
+:root {
+  /* Typography */
+  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-size-display: 2rem;     /* Clock, key indicators */
+  --text-size-body: 0.9375rem;   /* Default body text */
+  --text-size-label: 0.6875rem;  /* Metadata, labels */
+  --text-tracking-label: 0.04em;
+
+  /* Shell / Grid Defaults */
+  --cell-size: 100px;
+  --grid-cols: 8;
+  --module-padding: 20px;
+
+  /* Light Theme — Default */
+  --color-bg: #F3F2EE;
+  --color-text: #1A1A18;
+  --color-text-muted: #6B6B66;
+  --color-hairline: #DEDDD7;
+  --color-accent: #BF4E30;
+  --color-card-bg: rgba(255, 255, 255, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #181715;
+    --color-text: #EDEBE4;
+    --color-text-muted: #9A968C;
+    --color-hairline: #2E2C28;
+    --color-accent: #D6633F;
+    --color-card-bg: rgba(0, 0, 0, 0.2);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-size-body);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 80px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+#shell {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols), var(--cell-size));
+  grid-auto-rows: var(--cell-size);
+  gap: 0;
+  max-width: 100%;
+}
+
+.module {
+  position: relative;
+  padding: var(--module-padding);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.15s ease;
+}
+
+.module .label {
+  font-size: var(--text-size-label);
+  letter-spacing: var(--text-tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 10px;
+}
+
+.module .zoom-button,
+.module .setup-button {
+  position: absolute;
+  top: 16px;
+  font-family: var(--font-body);
+  font-size: var(--text-size-label);
+  letter-spacing: var(--text-tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.module .zoom-button { right: 16px; }
+.module .setup-button { right: 65px; }
+
+.module:hover .zoom-button,
+.module:hover .setup-button,
+.module:focus-within .zoom-button,
+.module:focus-within .setup-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.module .zoom-button:hover,
+.module .setup-button:hover {
+  color: var(--color-text);
+}
+
+.numeral {
+  font-family: var(--font-mono);
+  font-size: var(--text-size-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex: none;
+}
+
+.live-dot--pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot--pulse { animation: none; }
+}
+
+/* Skeleton Loading State */
+.module-skeleton {
+  background: var(--color-card-bg);
+  border-radius: 4px;
+  opacity: 0.5;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Expanded Modal View */
+.module.expanded {
+  position: fixed !important;
+  top: 40px !important;
+  left: 40px !important;
+  right: 40px !important;
+  bottom: 40px !important;
+  z-index: 1000 !important;
+  background: var(--color-bg) !important;
+  border: 1px solid var(--color-hairline) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+  border-radius: 8px !important;
+  grid-column: unset !important;
+  grid-row: unset !important;
+}
+
+body.modal-open {
+  overflow: hidden !important;
+}
+
+/* Secrets Setup Modal Dialog */
+.setup-dialog {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10;
+  border: 1px solid var(--color-hairline);
+}
+
+.setup-dialog input {
+  background: transparent;
+  border: 1px solid var(--color-hairline);
+  color: var(--color-text);
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: var(--text-size-body);
+  border-radius: 4px;
+}
+
+.setup-dialog button {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border: none;
+  padding: 6px 12px;
+  font-size: var(--text-size-label);
+  letter-spacing: var(--text-tracking-label);
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+}
