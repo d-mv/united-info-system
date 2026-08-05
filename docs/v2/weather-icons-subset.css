@@ -1,0 +1,54 @@
+/*!
+ *  Weather Icons — subset for UIS
+ *  Source: Erik Flowers, https://erikflowers.github.io/weather-icons/
+ *  Original icon art: Lukas Bischoff
+ *
+ *  License
+ *  ------------------------------------------------------------------------------
+ *  - Font licensed under SIL OFL 1.1 — http://scripts.sil.org/OFL
+ *  - This CSS is a hand-trimmed subset of the project's MIT-licensed CSS
+ *    (http://opensource.org/licenses/mit-license.html), reduced from ~222
+ *    icon classes to the ~13 this app uses. Same font file, smaller stylesheet.
+ *
+ *  Only woff2 + woff are included (eot/ttf/svg dropped — legacy formats
+ *  not needed for the browsers this project targets). Font itself is
+ *  NOT subsetted here — that requires font tooling (fonttools/pyftsubset)
+ *  and can be a follow-up if the 44KB woff2 ever needs to shrink further.
+ *
+ *  Loaded lazily, scoped to the weather widget only — see architecture
+ *  doc §10. Does not block the shell's first paint.
+ */
+
+@font-face {
+  font-family: 'weathericons';
+  src: url('font/weathericons-regular-webfont.woff2') format('woff2'),
+       url('font/weathericons-regular-webfont.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.wi {
+  display: inline-block;
+  font-family: 'weathericons';
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* condition icons actually used by the weather widget/expanded view */
+.wi-day-sunny:before      { content: "\f00d"; } /* Clear, daytime */
+.wi-night-clear:before    { content: "\f02e"; } /* Clear, nighttime */
+.wi-day-cloudy:before     { content: "\f002"; } /* Partly Cloudy, daytime */
+.wi-night-alt-cloudy:before { content: "\f086"; } /* Partly Cloudy, nighttime */
+.wi-cloudy:before          { content: "\f013"; } /* Overcast */
+.wi-fog:before              { content: "\f014"; } /* Fog */
+.wi-rain:before              { content: "\f019"; } /* Rain */
+.wi-showers:before            { content: "\f01a"; } /* Showers */
+.wi-thunderstorm:before        { content: "\f01e"; } /* Thunderstorm */
+.wi-snow:before                  { content: "\f01b"; } /* Snow */
+.wi-windy:before                  { content: "\f021"; } /* Windy */
+.wi-sunrise:before                 { content: "\f051"; } /* Sunrise marker */
+.wi-sunset:before                   { content: "\f052"; } /* Sunset marker */

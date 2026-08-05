@@ -1,0 +1,15 @@
+Weather Icons — vendored subset
+Source: https://github.com/erikflowers/weather-icons
+Author: Erik Flowers <erik@helloerik.com>
+Original icon art: Lukas Bischoff
+
+Font (weathericons-regular-webfont.woff2, .woff):
+  Licensed under the SIL Open Font License 1.1
+  http://scripts.sil.org/OFL
+
+CSS (weather-icons-subset.css, hand-trimmed from the project's own CSS):
+  Original CSS licensed under the MIT License
+  http://opensource.org/licenses/mit-license.html
+
+Vendored here and self-hosted (no CDN) per this project's protected-network
+and minimal-dependency constraints — see architecture doc §10.
