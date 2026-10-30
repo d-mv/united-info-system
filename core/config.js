@@ -1,6 +1,10 @@
 import { storage } from './storage.js';
 
+// Bump when DEFAULT_CONFIG.modules layout changes; older saved configs get the new layout.
+export const CONFIG_VERSION = 2;
+
 export const DEFAULT_CONFIG = {
+  version: CONFIG_VERSION,
   grid: {
     cellSize: 100,
     columns: 12,
@@ -8,7 +12,7 @@ export const DEFAULT_CONFIG = {
   },
   modules: [
     { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
-    { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 2 },
+    { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 3 },
     { id: 'bookmarks', enabled: true, cols: 4, rows: 4, col: 3, row: 1 },
     { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 }
   ],
@@ -33,8 +37,27 @@ export class ConfigManager {
     if (!currentConfig) {
       currentConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       this.storage.set(this.storageKey, currentConfig);
+    } else if (currentConfig.version !== CONFIG_VERSION) {
+      currentConfig = this._migrate(currentConfig);
+      this.storage.set(this.storageKey, currentConfig);
     }
     return currentConfig;
+  }
+
+  // Layout isn't user-editable yet, so module positions come from the defaults.
+  // Keep what the user did choose: enabled flags, grid settings and secrets.
+  _migrate(oldConfig) {
+    const defaults = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    const oldModules = Array.isArray(oldConfig.modules) ? oldConfig.modules : [];
+    const enabledById = new Map(oldModules.map(m => [m.id, m.enabled]));
+    return {
+      ...defaults,
+      grid: { ...defaults.grid, ...(oldConfig.grid || {}) },
+      modules: defaults.modules.map(m => (
+        enabledById.has(m.id) ? { ...m, enabled: enabledById.get(m.id) } : m
+      )),
+      secrets: { ...defaults.secrets, ...(oldConfig.secrets || {}) },
+    };
   }
 
   update(partialConfig) {

@@ -4,20 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>United InfoSystem (UIS)</title>
+<link rel="preload" href="/fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/core/theme.css">
 <style>
-  /* Critical CSS inlined for fast first paint */
+  /* Critical CSS inlined for fast first paint. Full tokens live in core/theme.css. */
   :root {
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: 'Victor Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --font-body: var(--font-sans);
-    --color-bg: #F3F2EE;
-    --color-text: #1A1A18;
+    --font-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --color-canvas: #edeae1;
+    --color-ink: #1c1b18;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --color-bg: #181715;
-      --color-text: #EDEBE4;
+      --color-canvas: #171613;
+      --color-ink: #e9e5da;
     }
   }
   html {
@@ -26,15 +27,9 @@
   }
   body {
     margin: 0;
-    background: var(--color-bg);
-    color: var(--color-text);
+    background: var(--color-canvas);
+    color: var(--color-ink);
     font-family: var(--font-sans);
-  }
-  button, input, select, textarea {
-    font-family: var(--font-sans);
-  }
-  widget-clock, .widget-clock, #clock-time, #clock-text {
-    font-family: var(--font-mono);
   }
 </style>
 </head>

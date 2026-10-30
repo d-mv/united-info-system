@@ -1,6 +1,6 @@
 # United InfoSystem (UIS) — Architecture Design
 
-**Status:** draft v1
+**Status:** v1.0 (active)
 **Constraints locked in:** no build step, no `package.json`, no framework runtime, served locally via a static file server (not `file://`, not a hosted page, not a browser extension).
 
 ---
@@ -30,6 +30,7 @@
   registry.js                # module id -> { type, load } map
   storage.js                 # thin localStorage wrapper, namespaced keys
   config.js                  # initializes/manages auto-generated config in localStorage
+  expand.js                  # accessible modal expansion & focus controller
 /apps/
   todo/
     todo-app.js               # defines <app-todo>
@@ -40,6 +41,7 @@
     clock-widget.js           # defines <widget-clock>
   weather/
     weather-widget.js         # defines <widget-weather>
+/start.sh                    # zero-dependency Ruby static server executable
 /README.md                   # clone + run instructions
 ```
 
@@ -201,16 +203,46 @@ Showing the button is pure CSS — no `mouseenter` listener needed:
 }
 ```
 
-JS is only needed for the actual expand action, since `startViewTransition` has no CSS-only equivalent:
+JS in `core/expand.js` (`setupExpandController()`) delegates document click and keydown events for modal toggling:
 
 ```js
-zoomButton.addEventListener('click', () => {
-  if (document.startViewTransition) {
-    document.startViewTransition(() => module.classList.add('expanded'));
-  } else {
-    module.classList.add('expanded'); // plain CSS transition fallback
-  }
-});
+// core/expand.js
+export function setupExpandController() {
+  document.addEventListener('click', (e) => {
+    const zoomBtn = e.target.closest('.zoom-button');
+    if (!zoomBtn) return;
+    const moduleEl = zoomBtn.closest('.module');
+    if (!moduleEl) return;
+
+    const toggle = () => {
+      const isExpanded = moduleEl.classList.contains('expanded');
+      if (isExpanded) {
+        moduleEl.classList.remove('expanded');
+        document.body.classList.remove('modal-open');
+        zoomBtn.setAttribute('aria-label', zoomBtn.getAttribute('aria-label')?.replace('Collapse', 'Expand'));
+      } else {
+        moduleEl.classList.add('expanded');
+        document.body.classList.add('modal-open');
+        zoomBtn.setAttribute('aria-label', zoomBtn.getAttribute('aria-label')?.replace('Expand', 'Collapse'));
+      }
+    };
+
+    if (document.startViewTransition) {
+      document.startViewTransition(toggle);
+    } else {
+      toggle();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const expandedMod = document.querySelector('.module.expanded');
+      if (expandedMod) {
+        // collapses expanded modal and updates body/aria state
+      }
+    }
+  });
+}
 ```
 
 `.expanded` switches the module to a fixed, full-viewport position via CSS. `startViewTransition` gives the native morph/zoom feel in Chromium and recent Safari; browsers without support (older Firefox) just snap — acceptable degradation, not worth a JS animation library for.
@@ -233,12 +265,16 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 
 ## 11. Visual System — Light/Dark Theme
 
-Tokens live in `core/theme.css` (design draft finalized — see file). Summary:
+Tokens live in `core/theme.css`. The visual language is **Braun / Dieter Rams**, shared with Kairos, Paciol and drive_read; token names and values match theirs (`--color-canvas`, `--color-ink`, `--color-line`, …). Summary:
 
-- **Palette:** warm off-white / warm near-black bg-text pairs for light and dark, not stark white/pure black. One accent (`#BF4E30` light, `#D6633F` dark) reserved strictly for live/status indication — clock ticking, data freshness, due-today — never decoration. Both muted-text pairs verified at WCAG AA (4.77:1 light, 6.07:1 dark).
-- **Type:** system sans stack for body/labels (zero network cost, no font file to fetch). Monospace with `font-variant-numeric: tabular-nums` for the clock and any ticking value, so digit changes don't shift layout.
-- **Signature element:** a single 5px accent dot (`.live-dot`) — the one deliberate splash of color, used nowhere else. Consistent with "spend your boldness in one place" — everything around it stays quiet.
-- **Zoom button uses `assets/zoom_icon.svg`**, providing a consistent SVG icon for expansion affordance across modules.
+- **Surfaces:** three depths only: recessed (input wells, skeletons), canvas (page), raised (module panels, dialogs). Depth is tone plus a 1px hairline (`--color-line`). Never shadows.
+- **Geometry:** `--radius: 2px` everywhere, a manufacturing tolerance rather than a style. Never more.
+- **Accent:** one signal red (`--color-accent`). It is used for the live dot, destructive hovers and the single primary button per dialog. Nothing else.
+- **Type:** Space Grotesk for UI text, IBM Plex Mono for labels and numerals. Both are self-hosted woff2 in `/fonts` (SIL OFL 1.1; licenses alongside), so there are no network calls. Labels are mono, uppercase, letterspaced (`.label`). Numerals are mono with tabular figures (`.num`, `.numeral`), so ticking values don't shift layout.
+- **Signature element:** the 6px accent `.live-dot`, which pulses on live data (clock, weather freshness) and goes grey when an update failed.
+- **Icons:** `assets/*.svg` are applied as CSS masks (`.icon--zoom`, `.icon--close`) so they take the ink colour in both themes.
+- **Dialogs:** native `<dialog>` opened with `showModal()`, which gives focus trapping, Escape handling and a `::backdrop` scrim without custom JS.
+- **User text:** module markup is built with template strings, so every user or API value goes through `escapeHtml` / `safeHref` from `core/html.js`.
 
 **Switching mechanism:** `prefers-color-scheme` only, decided for v1 — no manual toggle, no `data-theme` attribute, no `localStorage` read for theme. The OS setting is the single source of truth, which also means no anti-flash script is needed in `<head>` (there's nothing to flash — the media query resolves before first paint regardless). Simpler for now; a manual override can be layered on later without disturbing these tokens if it turns out to be wanted.
 

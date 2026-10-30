@@ -1,4 +1,5 @@
 import { storage } from '../../core/storage.js';
+import { escapeHtml, safeHref } from '../../core/html.js';
 
 export const DEFAULT_BOOKMARKS = [
   { id: 'b1', title: 'Refactoring UI notes', url: 'https://refactoringui.com' },
@@ -120,16 +121,19 @@ export class BookmarksApp extends HTMLElement {
     const list = this.getBookmarks();
 
     const itemsHtml = list.map(item => {
+      const id = escapeHtml(item.id);
+      const title = escapeHtml(item.title);
       if (this.editingId === item.id) {
         return `
-          <li class="editing-item">
-            <form class="bookmark-form edit-bookmark-form" data-id="${item.id}">
-              <input type="text" class="bookmark-title-input" placeholder="Title" value="${item.title}" aria-label="Bookmark Title" required>
-              <input type="text" class="bookmark-url-input" placeholder="URL (e.g. https://example.com)" value="${item.url}" aria-label="Bookmark URL" required>
+          <li class="bookmark-item editing-item">
+            <form class="edit-bookmark-form" data-id="${id}">
+              <input type="text" class="input bookmark-title-input" placeholder="Title" value="${title}" aria-label="Bookmark title" required>
+              <input type="text" class="input bookmark-url-input" placeholder="https://example.com" value="${escapeHtml(item.url)}" aria-label="Bookmark URL" required>
               <div class="form-actions">
-                <button type="submit" class="save-btn">Save</button>
-                <button type="button" class="cancel-btn">Cancel</button>
-                <button type="button" class="delete-btn delete-form-btn" aria-label="Delete Bookmark">Delete</button>
+                <button type="button" class="action-button action-button--danger delete-btn">Delete</button>
+                <span class="form-actions__spacer"></span>
+                <button type="button" class="button-secondary cancel-btn">Cancel</button>
+                <button type="submit" class="button-primary save-btn">Save</button>
               </div>
             </form>
           </li>
@@ -137,123 +141,124 @@ export class BookmarksApp extends HTMLElement {
       }
 
       return `
-        <li>
+        <li class="bookmark-item">
           <div class="bookmark-content">
-            <a href="${item.url}" target="_blank" rel="noopener">${item.title}</a>
-            <span class="domain">${this.extractDomain(item.url)}</span>
+            <a href="${safeHref(item.url)}" target="_blank" rel="noopener">${title}</a>
+            <span class="domain">${escapeHtml(this.extractDomain(item.url))}</span>
           </div>
           <div class="bookmark-actions">
-            <button type="button" class="action-btn edit-bookmark-btn" data-id="${item.id}" aria-label="Edit ${item.title}">Edit</button>
-            <button type="button" class="action-btn delete-bookmark-btn" data-id="${item.id}" aria-label="Delete ${item.title}">&times;</button>
+            <button type="button" class="action-button edit-bookmark-btn" data-id="${id}" aria-label="Edit ${title}">Edit</button>
+            <button type="button" class="action-button action-button--danger delete-bookmark-btn" data-id="${id}" aria-label="Delete ${title}">Delete</button>
           </div>
         </li>
       `;
     }).join('');
 
-    const addFormHtml = this.isAdding ? `
-      <div class="module-dialog__container">
-      <div class="module-dialog__overlay" aria-hidden="true"/>
-      <div class="module-dialog__content">
-      <div class="module-dialog__content-header">
-        <p class="module-dialog__title">Add Bookmark</p>
-        <button id="close-button" class="close-button module-dialog__close" type="button" aria-label="Close Add Bookmark Form"><img src="assets/close_icon.svg" alt="Close" /></button>
-      </div>
-      <form id="bookmark-form" class="module-dialog__form">
-        <input type="text" class="bookmark-title-input" placeholder="Title" aria-label="Bookmark Title" required>
-        <input type="text" class="bookmark-url-input" placeholder="URL (e.g. https://example.com)" aria-label="Bookmark URL" required>
-        <div class="form-actions">
-          <button type="submit" class="button button-primary">Save</button>
-          <button id="cancel-button" type="button" class="button button-secondary">Cancel</button>
+    const listHtml = list.length
+      ? `<ul class="bookmark-list">${itemsHtml}</ul>`
+      : '<p class="label empty-state">No bookmarks yet</p>';
+
+    const addDialogHtml = this.isAdding ? `
+      <dialog class="dialog add-bookmark-dialog" aria-labelledby="add-bookmark-title">
+        <div class="dialog__head">
+          <h2 class="dialog__title" id="add-bookmark-title">Add bookmark</h2>
+          <button id="close-button" class="zoom-button" type="button" aria-label="Close"><span class="icon icon--close" aria-hidden="true"></span></button>
         </div>
-      </form>
-      </div>
-      </div>
+        <form id="bookmark-form" class="dialog__body add-bookmark-form">
+          <label class="field">
+            <span class="label">Title</span>
+            <input type="text" class="input bookmark-title-input" autofocus required>
+          </label>
+          <label class="field">
+            <span class="label">URL</span>
+            <input type="text" class="input bookmark-url-input" placeholder="https://example.com" required>
+          </label>
+          <div class="form-actions">
+            <button id="cancel-button" type="button" class="button-secondary">Cancel</button>
+            <button type="submit" class="button-primary">Save</button>
+          </div>
+        </form>
+      </dialog>
     ` : '';
 
     this.innerHTML = `
       <style>
-        .app-bookmarks {
-          position: relative;
-        }
-        .app-bookmarks ul {
+        .app-bookmarks .bookmark-list {
           list-style: none;
           margin: 0;
           padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
+          overflow-y: auto;
+          border-top: 1px solid var(--color-line);
         }
-        .app-bookmarks li {
+        .app-bookmarks .bookmark-item {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 8px;
+          gap: 1.2rem;
+          padding: 1rem 0;
+          border-bottom: 1px solid var(--color-line);
         }
         .app-bookmarks .bookmark-content {
           flex: 1;
           min-width: 0;
         }
         .app-bookmarks a {
-          color: var(--color-text);
-          text-decoration: none;
-          font-size: var(--text-size-body);
           display: block;
+          color: var(--color-ink);
+          text-decoration: none;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
-        .app-bookmarks a:hover { text-decoration: underline; }
+        .app-bookmarks a:hover { text-decoration: underline; text-underline-offset: 0.3rem; }
         .app-bookmarks .domain {
           display: block;
-          font-size: var(--text-size-label);
-          letter-spacing: var(--text-tracking-label);
-          color: var(--color-text-muted);
-          margin-top: 2px;
+          margin-top: 0.2rem;
+          font-family: var(--font-mono);
+          font-size: var(--text-xs);
+          letter-spacing: var(--track-meta);
+          color: var(--color-ink-muted);
         }
         .app-bookmarks .bookmark-actions {
           display: flex;
-          gap: 6px;
+          gap: 1.2rem;
           opacity: 0;
-          transition: opacity 0.15s ease;
+          transition: opacity var(--duration) var(--ease);
         }
-        .app-bookmarks li:hover .bookmark-actions,
-        .app-bookmarks li:focus-within .bookmark-actions {
+        .app-bookmarks .bookmark-item:hover .bookmark-actions,
+        .app-bookmarks .bookmark-item:focus-within .bookmark-actions {
           opacity: 1;
         }
-        .app-bookmarks .action-btn {
-          background: transparent;
-          border: none;
-          color: var(--color-text-muted);
-          font-size: var(--text-size-label);
-          cursor: pointer;
-          padding: 2px 4px;
-          line-height: 1;
-          border-radius: 2px;
+        @media (hover: none) {
+          .app-bookmarks .bookmark-actions { opacity: 1; }
         }
-        .app-bookmarks .action-btn:hover {
-          color: var(--color-text);
+        .app-bookmarks .edit-bookmark-form {
+          display: flex;
+          flex-direction: column;
+          gap: 0.8rem;
+          width: 100%;
         }
-        .app-bookmarks .bookmark-form button.delete-form-btn {
-          background: transparent;
-          color: var(--color-accent);
-          border: 1px solid var(--color-accent);
-          margin-left: auto;
-        }
+        .app-bookmarks .form-actions__spacer { flex: 1; }
       </style>
       <div class="block-header">
         <p class="block-header__label">Bookmarks</p>
         <div class="block-header__actions">
-          <button id="add" class="button action-button" type="button" aria-label="Add Bookmark">+ Add</button>
-          <button class="button zoom-button" type="button" aria-label="Expand Bookmarks"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+          <button id="add" class="action-button" type="button" aria-label="Add bookmark">+ Add</button>
+          <button class="zoom-button" type="button" aria-label="Expand Bookmarks"><span class="icon icon--zoom" aria-hidden="true"></span></button>
         </div>
       </div>
-        ${addFormHtml}
-        <ul>
-          ${itemsHtml}
-        </ul>
+      ${listHtml}
+      ${addDialogHtml}
     `;
 
     this.bindEvents();
+  }
+
+  closeAddDialog() {
+    this.isAdding = false;
+    this.render();
+    const addBtn = typeof this.querySelector === 'function' ? this.querySelector('#add') : null;
+    if (addBtn && addBtn.focus) addBtn.focus();
   }
 
   bindEvents() {
@@ -263,13 +268,23 @@ export class BookmarksApp extends HTMLElement {
     if (addBtn) {
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.isAdding = !this.isAdding;
+        this.isAdding = true;
         this.editingId = null;
         this.render();
-        if (this.isAdding) {
-          const titleInput = this.querySelector('.add-bookmark-form .bookmark-title-input');
-          if (titleInput) titleInput.focus();
-        }
+      });
+    }
+
+    const dialog = this.querySelector('.add-bookmark-dialog');
+    if (dialog) {
+      // showModal moves focus to the first field, traps focus and handles Escape.
+      if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+      dialog.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        this.closeAddDialog();
+      });
+      // Click on the backdrop (outside the dialog box) closes it.
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) this.closeAddDialog();
       });
     }
 
@@ -277,118 +292,88 @@ export class BookmarksApp extends HTMLElement {
     if (addForm) {
       const titleInput = addForm.querySelector('.bookmark-title-input');
       const urlInput = addForm.querySelector('.bookmark-url-input');
-      const cancelBtn = addForm.querySelector('#cancel-button');
-      const closeButton = this.querySelector('#close-button');
 
-      const handleSave = (e) => {
-        if (e) e.preventDefault();
+      addForm.addEventListener('submit', (e) => {
+        e.preventDefault();
         const title = titleInput ? titleInput.value : '';
         const url = urlInput ? urlInput.value : '';
         if (title.trim() && url.trim()) {
+          this.isAdding = false;
           this.addBookmark(title, url);
-          this.isAdding = false;
-          this.render();
-        }
-      };
-
-      addForm.addEventListener('submit', handleSave);
-
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.isAdding = false;
-          this.render();
-        });
-      }
-
-      if (closeButton) {
-        closeButton.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.isAdding = false;
-          this.render();
-        });
-      }
-      addForm.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          this.isAdding = false;
-          this.render();
+          this.closeAddDialog();
         }
       });
+
+      for (const sel of ['#cancel-button', '#close-button']) {
+        const btn = this.querySelector(sel);
+        if (btn) btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.closeAddDialog();
+        });
+      }
     }
 
-    const editBtns = this.querySelectorAll('.edit-bookmark-btn');
-    if (editBtns) {
-      editBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const id = btn.getAttribute('data-id');
-          this.editingId = id;
-          this.isAdding = false;
+    this.querySelectorAll('.edit-bookmark-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.editingId = btn.getAttribute('data-id');
+        this.isAdding = false;
+        this.render();
+        const titleInput = this.querySelector('.edit-bookmark-form .bookmark-title-input');
+        if (titleInput) titleInput.focus();
+      });
+    });
+
+    this.querySelectorAll('.delete-bookmark-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        if (id) {
+          if (this.editingId === id) this.editingId = null;
+          this.deleteBookmark(id);
           this.render();
-          const editForm = this.querySelector('.edit-bookmark-form');
-          if (editForm) {
-            const titleInput = editForm.querySelector('.bookmark-title-input');
-            if (titleInput) titleInput.focus();
-          }
-        });
+        }
       });
-    }
-
-    const deleteBtns = this.querySelectorAll('.delete-bookmark-btn');
-    if (deleteBtns) {
-      deleteBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const id = btn.getAttribute('data-id');
-          if (id) {
-            this.deleteBookmark(id);
-            if (this.editingId === id) this.editingId = null;
-            this.render();
-          }
-        });
-      });
-    }
+    });
 
     const editForm = this.querySelector('.edit-bookmark-form');
     if (editForm) {
       const id = editForm.getAttribute('data-id');
       const titleInput = editForm.querySelector('.bookmark-title-input');
       const urlInput = editForm.querySelector('.bookmark-url-input');
-      const cancelBtn = editForm.querySelector('.cancel-btn');
-      const deleteBtn = editForm.querySelector('.delete-btn');
 
-      const handleUpdate = (e) => {
-        if (e) e.preventDefault();
+      const stopEditing = () => {
+        this.editingId = null;
+        this.render();
+      };
+
+      editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
         const title = titleInput ? titleInput.value : '';
         const url = urlInput ? urlInput.value : '';
         if (title.trim() && url.trim()) {
-          this.updateBookmark(id, title, url);
           this.editingId = null;
+          this.updateBookmark(id, title, url);
           this.render();
         }
-      };
+      });
 
-      editForm.addEventListener('submit', handleUpdate);
+      const cancelBtn = editForm.querySelector('.cancel-btn');
+      if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); stopEditing(); });
 
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.editingId = null;
-          this.render();
-        });
-      }
-      if (deleteBtn) {
-        deleteBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.deleteBookmark(id);
-          this.editingId = null;
-          this.render();
-        });
-      }
+      const deleteBtn = editForm.querySelector('.delete-btn');
+      if (deleteBtn) deleteBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.editingId = null;
+        this.deleteBookmark(id);
+        this.render();
+      });
+
       editForm.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-          this.editingId = null;
-          this.render();
+          // Don't also collapse an expanded module.
+          e.stopPropagation();
+          stopEditing();
         }
       });
     }

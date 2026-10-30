@@ -36,6 +36,8 @@ export function setupExpandController() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      // An open dialog handles its own Escape; don't also collapse the module behind it.
+      if (document.querySelector('dialog[open]')) return;
       const expandedMod = document.querySelector('.module.expanded');
       if (expandedMod) {
         const collapse = () => {

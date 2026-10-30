@@ -32,6 +32,8 @@ export class GridEngine {
     this.shellElement.style['--module-padding'] = `${gridOpts.padding}px`;
 
     this.shellElement.replaceChildren();
+    // Any expanded module is gone after a re-render; release the page scroll lock and scrim.
+    if (typeof document !== 'undefined' && document.body) document.body.classList.remove('modal-open');
 
     const enabledModules = (config.modules || []).filter(m => m.enabled !== false);
 

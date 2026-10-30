@@ -1,4 +1,5 @@
 import { storage } from '../../core/storage.js';
+import { escapeHtml } from '../../core/html.js';
 
 export const DEFAULT_TODOS = [
   { id: 't1', text: 'Finish grid engine placement logic', done: false, active: true },
@@ -70,65 +71,118 @@ export class TodoApp extends HTMLElement {
   render() {
     const todos = this.getTodos();
 
-    const itemsHtml = todos.map(item => `
-      <li class="${item.done ? 'done' : ''}">
-        ${item.active && !item.done ? '<span class="live-dot" aria-hidden="true"></span>' : ''}
-        <input type="checkbox" id="todo-${item.id}" data-id="${item.id}" ${item.done ? 'checked' : ''}>
-        <label for="todo-${item.id}"><span>${item.text}</span></label>
-      </li>
-    `).join('');
+    const itemsHtml = todos.map(item => {
+      const id = escapeHtml(item.id);
+      return `
+      <li class="todo-item${item.done ? ' done' : ''}">
+        <input type="checkbox" class="todo-check" id="todo-${id}" data-id="${id}" ${item.done ? 'checked' : ''}>
+        <label for="todo-${id}" class="todo-text">${escapeHtml(item.text)}</label>
+        ${item.active && !item.done ? '<span class="live-dot" aria-label="In progress"></span>' : ''}
+      </li>`;
+    }).join('');
+
+    const listHtml = todos.length
+      ? `<ul class="todo-list">${itemsHtml}</ul>`
+      : '<p class="label empty-state">Nothing to do</p>';
 
     this.innerHTML = `
       <style>
-        .app-todo ul {
+        .app-todo .todo-compose {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          height: var(--control-height);
+          margin-bottom: 0.4rem;
+          border-bottom: 1px solid var(--color-line-strong);
+        }
+        .app-todo .todo-compose__plus {
+          font-family: var(--font-mono);
+          color: var(--color-ink-faint);
+        }
+        .app-todo .add-todo-input {
+          flex: 1;
+          min-width: 0;
+          height: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-ink);
+          font-size: var(--text-base);
+        }
+        .app-todo .add-todo-input::placeholder { color: var(--color-ink-faint); }
+        .app-todo .todo-compose:focus-within { border-bottom-color: var(--color-ink); }
+        .app-todo .keyhint {
+          font-family: var(--font-mono);
+          font-size: var(--text-2xs);
+          letter-spacing: var(--track-meta);
+          color: var(--color-ink-faint);
+          border: 1px solid var(--color-line);
+          border-radius: var(--radius);
+          padding: 0.1rem 0.5rem;
+        }
+        .app-todo .todo-list {
           list-style: none;
           margin: 0;
           padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+          overflow-y: auto;
         }
-        .app-todo li {
+        .app-todo .todo-item {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 1.2rem;
+          min-height: 4rem;
+          border-bottom: 1px solid var(--color-line);
         }
-        .app-todo input[type="checkbox"] {
-          accent-color: var(--color-accent);
-          width: 14px;
-          height: 14px;
+        .app-todo .todo-check {
+          appearance: none;
           flex: none;
+          display: grid;
+          place-content: center;
+          width: 1.4rem;
+          height: 1.4rem;
+          margin: 0;
+          border: 1px solid var(--color-line-strong);
+          border-radius: var(--radius);
+          background: transparent;
           cursor: pointer;
         }
-        .app-todo li.done span {
-          color: var(--color-text-muted);
+        .app-todo .todo-check:hover { border-color: var(--color-ink); }
+        .app-todo .todo-check:checked {
+          background: var(--color-ink);
+          border-color: var(--color-ink);
+        }
+        .app-todo .todo-check:checked::after {
+          content: "";
+          width: 0.7rem;
+          height: 0.4rem;
+          margin-top: -0.2rem;
+          border-left: 1.5px solid var(--color-ink-inverse);
+          border-bottom: 1.5px solid var(--color-ink-inverse);
+          transform: rotate(-45deg);
+        }
+        .app-todo .todo-text {
+          flex: 1;
+          min-width: 0;
+          cursor: pointer;
+          overflow-wrap: anywhere;
+        }
+        .app-todo .todo-item.done .todo-text {
+          color: var(--color-ink-faint);
           text-decoration: line-through;
         }
-        .app-todo .add-todo-input {
-          background: transparent;
-          border: none;
-          border-bottom: 1px solid var(--color-hairline);
-          color: var(--color-text);
-          font-family: var(--font-body);
-          font-size: var(--text-size-body);
-          padding: 4px 0;
-          margin-bottom: 12px;
-          width: 100%;
-          outline: none;
-        }
-        .app-todo .add-todo-input::placeholder {
-          color: var(--color-text-muted);
-          font-size: var(--text-size-label);
-          letter-spacing: var(--text-tracking-label);
-          text-transform: uppercase;
-        }
       </style>
-      <p class="label">Today</p>
-      <button class="zoom-button" type="button" aria-label="Expand Tasks"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
-      <input type="text" class="add-todo-input" placeholder="+ Add task..." aria-label="Add new task">
-      <ul>
-        ${itemsHtml}
-      </ul>
+      <div class="block-header">
+        <p class="block-header__label">Today</p>
+        <div class="block-header__actions">
+          <button class="zoom-button" type="button" aria-label="Expand Tasks"><span class="icon icon--zoom" aria-hidden="true"></span></button>
+        </div>
+      </div>
+      <div class="todo-compose">
+        <span class="todo-compose__plus" aria-hidden="true">+</span>
+        <input type="text" class="add-todo-input" placeholder="Add task" aria-label="Add new task">
+        <span class="keyhint" aria-hidden="true">Enter</span>
+      </div>
+      ${listHtml}
     `;
 
     if (typeof this.querySelectorAll === 'function') {
@@ -147,7 +201,9 @@ export class TodoApp extends HTMLElement {
         addInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && addInput.value) {
             this.addTodo(addInput.value);
-            addInput.value = '';
+            // addTodo re-renders, which replaces the input; keep typing focus.
+            const freshInput = this.querySelector('.add-todo-input');
+            if (freshInput) freshInput.focus();
           }
         });
       }

@@ -1,5 +1,6 @@
 import { configManager } from '../../core/config.js';
 import { storage } from '../../core/storage.js';
+import { escapeHtml } from '../../core/html.js';
 
 export function mapWmoCodeToCondition(code) {
   if (code === 0) return 'Clear';
@@ -60,6 +61,8 @@ export class WeatherWidget extends HTMLElement {
     this.configManager = configManager;
     this.storage = storage;
     this.isSetupOpen = false;
+    // 'loading' | 'ok' | 'error' — drives the empty/error states when there is no cache.
+    this.fetchState = 'loading';
   }
 
   connectedCallback() {
@@ -72,24 +75,11 @@ export class WeatherWidget extends HTMLElement {
   }
 
   render() {
-    if (this.isSetupOpen) {
-      this.renderSetupDialog();
-      return;
-    }
-
     const secrets = this.getSecrets();
     const provider = secrets.provider || 'openmeteo';
     const cache = this.storage.get('weather:cache') || null;
-
-    const temp = cache ? `${cache.temp}°` : '--°';
-    const condition = cache
-      ? cache.condition
-      : (provider === 'openmeteo' || secrets.apiKey ? 'Loading...' : 'Setup API key');
-    const timeStr = cache && cache.fetchedAt ? new Date(cache.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
     const units = secrets.units || 'metric';
-    const iconClass = cache
-      ? this.weatherIconClass(cache.condition, cache.fetchedAt, cache.sunrise, cache.sunset)
-      : 'wi-day-sunny';
+    const needsKey = provider === 'openweathermap' && !secrets.apiKey;
 
     this.innerHTML = `
       <style>
@@ -111,154 +101,192 @@ export class WeatherWidget extends HTMLElement {
           -moz-osx-font-smoothing: grayscale;
         }
         .widget-weather .wi-day-sunny:before        { content: "\\f00d"; }
-        .widget-weather .wi-night-clear:before       { content: "\\f02e"; }
-        .widget-weather .wi-day-cloudy:before        { content: "\\f002"; }
-        .widget-weather .wi-night-alt-cloudy:before  { content: "\\f086"; }
-        .widget-weather .wi-cloudy:before            { content: "\\f013"; }
-        .widget-weather .wi-fog:before               { content: "\\f014"; }
-        .widget-weather .wi-rain:before               { content: "\\f019"; }
-        .widget-weather .wi-showers:before            { content: "\\f01a"; }
-        .widget-weather .wi-thunderstorm:before        { content: "\\f01e"; }
-        .widget-weather .wi-snow:before                 { content: "\\f01b"; }
-        .widget-weather .wi-windy:before                 { content: "\\f021"; }
-        .widget-weather .wi-sunrise:before                { content: "\\f051"; }
-        .widget-weather .wi-sunset:before                  { content: "\\f052"; }
+        .widget-weather .wi-night-clear:before      { content: "\\f02e"; }
+        .widget-weather .wi-day-cloudy:before       { content: "\\f002"; }
+        .widget-weather .wi-night-alt-cloudy:before { content: "\\f086"; }
+        .widget-weather .wi-cloudy:before           { content: "\\f013"; }
+        .widget-weather .wi-fog:before              { content: "\\f014"; }
+        .widget-weather .wi-rain:before             { content: "\\f019"; }
+        .widget-weather .wi-showers:before          { content: "\\f01a"; }
+        .widget-weather .wi-thunderstorm:before     { content: "\\f01e"; }
+        .widget-weather .wi-snow:before             { content: "\\f01b"; }
+        .widget-weather .wi-windy:before            { content: "\\f021"; }
+        .widget-weather .wi-sunrise:before          { content: "\\f051"; }
+        .widget-weather .wi-sunset:before           { content: "\\f052"; }
 
+        .widget-weather .primary { flex: 1; display: flex; flex-direction: column; min-height: 0; }
         .widget-weather .primary-row { display: flex; align-items: center; gap: 1.2rem; }
-        .widget-weather .primary .wi { font-size: 1.75rem; color: var(--color-text); }
+        .widget-weather .primary .wi { font-size: 2.4rem; color: var(--color-ink); }
         .widget-weather .primary .numeral {
-          font-family: var(--font-mono);
-          font-size: 2.4rem;
+          font-size: var(--text-xl);
+          letter-spacing: var(--track-tight);
+          line-height: 1;
         }
-        .widget-weather .condition { margin: 2px 0 auto; color: var(--color-text-muted); }
+        .widget-weather .condition { margin-top: 0.6rem; color: var(--color-ink-muted); font-size: var(--text-sm); }
+        .widget-weather .freshness {
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+          margin-top: auto;
+        }
+        .widget-weather .freshness .live-dot--stale { background: var(--color-ink-faint); }
+        .widget-weather .freshness .warn { color: var(--color-accent); }
+        .widget-weather .state {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 0.8rem;
+        }
 
         .widget-weather .weather-expanded { display: none; }
         .widget-weather.expanded .weather-expanded {
-          display: block;
-          margin-top: 1.6rem;
-          overflow-y: auto;
-        }
-
-        .widget-weather .stat-row {
           display: flex;
-          flex-wrap: wrap;
-          border-top: 1px solid var(--color-hairline);
-          
+          flex-direction: column;
+          gap: 3.2rem;
+          margin-top: 3.2rem;
+        }
+        .widget-weather.expanded .primary { flex: none; }
+        .widget-weather.expanded .primary .numeral { font-size: var(--text-2xl); }
+        .widget-weather.expanded .primary .wi { font-size: 3.2rem; }
+        .widget-weather.expanded .freshness { margin-top: 1.6rem; }
+        .widget-weather .section-label { margin-bottom: 1.2rem; }
+
+        .widget-weather .stat-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+          border-top: 1px solid var(--color-line);
         }
         .widget-weather .stat {
-          flex: 1 1 14rem;
-          padding: 1.2rem 1.6rem 1.2rem 0;
-          margin-right: 1.6rem;
-          border-left: 1px solid var(--color-hairline);
-          padding-left: 1.6rem;
+          padding: 1.2rem 0;
+          border-bottom: 1px solid var(--color-line);
         }
-        .widget-weather .stat:first-child { border-left: none; }
-         .widget-weather .stat:nth-child(9) { border-left: none; }
-        .widget-weather .stat .label { margin: 0 0 6px; }
-        .widget-weather .stat .value {
-          font-family: var(--font-mono);
-          font-variant-numeric: tabular-nums;
-          font-size: 1.3rem;
-        }
+        .widget-weather .stat .label { margin-bottom: 0.6rem; }
+        .widget-weather .stat .value { font-size: var(--text-md); }
 
         .widget-weather .hourly-strip {
           display: flex;
           overflow-x: auto;
-          border-top: 1px solid var(--color-hairline);
+          border-top: 1px solid var(--color-line);
+          border-bottom: 1px solid var(--color-line);
         }
-        .widget-weather .hourly-strip .hour {
-          flex: 0 0 7.2rem;
-          padding: 1.2rem 1rem;
-          border-left: 1px solid var(--color-hairline);
-          text-align: center;
-          flex: 1;
-        }
-        .widget-weather .hourly-strip .hour:first-child { border-left: none; }
-        .widget-weather .hourly-strip .hour .label { margin-bottom: 8px; }
-        .widget-weather .hourly-strip .hour .cond {
-          font-size: var(--text-size-label);
-          color: var(--color-text-muted);
-          margin-bottom: 8px;
-          min-height: 2.4em;
-        }
-        .widget-weather .hourly-strip .hour .value {
-          font-family: var(--font-mono);
-          font-variant-numeric: tabular-nums;
-          font-size: 1.2rem;
-          margin-bottom: 6px;
-        }
-        .widget-weather .hourly-strip .hour .rain { font-size: var(--text-size-label); color: var(--color-text-muted); }
-
-        .widget-weather .daily-list .day-row {
+        .widget-weather .hour {
+          flex: 1 0 7.2rem;
           display: flex;
-          align-items: baseline;
-          gap: 1.6rem;
-          padding: 1rem 0;
-          border-bottom: 1px solid var(--color-hairline);
+          flex-direction: column;
+          align-items: center;
+          gap: 0.8rem;
+          padding: 1.2rem 0.8rem;
+          border-left: 1px solid var(--color-line);
+          text-align: center;
         }
-        .widget-weather .daily-list .day-row:first-child { border-top: 1px solid var(--color-hairline); }
-        .widget-weather .daily-list .day-name { flex: 0 0 5rem; }
-        .widget-weather .daily-list .day-icon { flex: 0 0 2rem; }
-        .widget-weather .daily-list .day-cond { flex: 1 1 auto; color: var(--color-text-muted); }
-        .widget-weather .daily-list .day-temps {
-          font-family: var(--font-mono);
-          font-variant-numeric: tabular-nums;
-          flex: 0 0 8rem;
-          text-align: right;
-        }
-        .widget-weather .daily-list .day-temps .low { color: var(--color-text-muted); margin-left: 6px; }
-        .widget-weather .daily-list .day-rain {
-          flex: 0 0 5rem;
-          text-align: right;
-          font-size: var(--text-size-label);
-          color: var(--color-text-muted);
-        }
+        .widget-weather .hour:first-child { border-left: none; }
+        .widget-weather .hour .wi { font-size: 2rem; color: var(--color-ink-muted); }
+        .widget-weather .hour .value { font-size: var(--text-base); }
+        .widget-weather .hour .rain { font-size: var(--text-xs); color: var(--color-ink-muted); min-height: 1.4em; }
 
-        .widget-weather .hourly-strip .wi,
-        .widget-weather .daily-list .wi {
-          font-size: 2rem;
-          color: var(--color-text-muted);
-          margin-block-start: 1rem;
+        .widget-weather .daily-list { max-width: 64rem; border-top: 1px solid var(--color-line); }
+        .widget-weather .day-row {
+          display: flex;
+          align-items: center;
+          gap: 1.6rem;
+          min-height: 4.4rem;
+          border-bottom: 1px solid var(--color-line);
         }
+        .widget-weather .day-name { flex: 0 0 5rem; }
+        .widget-weather .day-icon { flex: 0 0 2.4rem; }
+        .widget-weather .day-icon .wi { font-size: 1.8rem; color: var(--color-ink-muted); }
+        .widget-weather .day-cond { flex: 1 1 auto; color: var(--color-ink-muted); }
+        .widget-weather .day-rain { flex: 0 0 5rem; text-align: right; font-size: var(--text-xs); color: var(--color-ink-muted); }
+        .widget-weather .day-temps { flex: 0 0 9rem; text-align: right; }
+        .widget-weather .day-temps .low { color: var(--color-ink-muted); margin-left: 0.8rem; }
+
+        .widget-weather .setup-dialog .hint { margin: 0; font-size: var(--text-xs); color: var(--color-ink-muted); }
       </style>
       <div class="block-header">
         <p class="block-header__label">Weather</p>
         <div class="block-header__actions">
-          <button id="setup-button" class="button action-button" type="button" aria-label="Setup Secrets">Setup</button>
-          <button class="button zoom-button" type="button" aria-label="Expand Weather"><img src="assets/zoom_icon.svg" alt="Zoom" /></button>
+          <button id="setup-button" class="action-button" type="button" aria-label="Weather setup">Setup</button>
+          <button class="zoom-button" type="button" aria-label="Expand Weather"><span class="icon icon--zoom" aria-hidden="true"></span></button>
         </div>
       </div>
+      ${cache ? this.renderReadout(cache, units) : this.renderState(needsKey)}
+      ${this.isSetupOpen ? this.renderSetupDialog(secrets) : ''}
+    `;
+
+    this.bindEvents();
+  }
+
+  renderState(needsKey) {
+    if (needsKey) {
+      return `
+        <div class="state">
+          <p class="label">No API key</p>
+          <button type="button" class="action-button state-setup-button">Open setup</button>
+        </div>`;
+    }
+    if (this.fetchState === 'error') {
+      return `
+        <div class="state" role="status">
+          <p class="label">Weather unavailable</p>
+          <button type="button" class="action-button retry-button">Retry</button>
+        </div>`;
+    }
+    return `
+      <div class="state" role="status">
+        <p class="label">Loading</p>
+      </div>`;
+  }
+
+  renderReadout(cache, units) {
+    const timeStr = cache.fetchedAt
+      ? new Date(cache.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+    const iconClass = this.weatherIconClass(cache.condition, cache.fetchedAt, cache.sunrise, cache.sunset);
+    const failed = this.fetchState === 'error';
+
+    return `
       <div class="primary">
         <div class="primary-row">
           <i class="wi ${iconClass}" aria-hidden="true"></i>
-          <div class="numeral">${temp}</div>
+          <div class="numeral">${escapeHtml(cache.temp)}°</div>
         </div>
-        <div class="condition">${condition}</div>
+        <div class="condition">${escapeHtml(cache.condition)}${cache.city ? ` · ${escapeHtml(cache.city)}` : ''}</div>
         <div class="freshness">
-          As of ${timeStr}
-          <span class="live-dot live-dot--pulse" aria-hidden="true"></span>
+          <span class="label">As of <span class="num">${timeStr}</span>${failed ? ' · <span class="warn">Update failed</span>' : ''}</span>
+          <span class="live-dot ${failed ? 'live-dot--stale' : 'live-dot--pulse'}" aria-hidden="true"></span>
         </div>
       </div>
       <div class="weather-expanded">
-        <div class="content">
-          ${this.renderExpandedDetails(cache, units)}
-        </div>
+        ${this.renderExpandedDetails(cache, units)}
       </div>
     `;
+  }
 
-    const setupBtn = this.querySelector('#setup-button');
-    if (setupBtn) {
-      setupBtn.addEventListener('click', (e) => {
+  bindEvents() {
+    if (typeof this.querySelector !== 'function') return;
+
+    for (const sel of ['#setup-button', '.state-setup-button']) {
+      const btn = this.querySelector(sel);
+      if (btn) btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.openSetup();
       });
     }
+
+    const retryBtn = this.querySelector('.retry-button');
+    if (retryBtn) retryBtn.addEventListener('click', () => {
+      this.fetchState = 'loading';
+      this.render();
+      this.fetchWeatherStaleWhileRevalidate(true);
+    });
+
+    if (this.isSetupOpen) this.bindSetupDialog();
   }
 
   renderExpandedDetails(cache, units) {
-    if (!cache) {
-      return `<p class="condition">Loading details...</p>`;
-    }
+    if (!cache) return '';
 
     const speedUnit = units === 'imperial' ? 'mph' : 'km/h';
     const tempUnit = units === 'imperial' ? '°F' : '°C';
@@ -276,36 +304,35 @@ export class WeatherWidget extends HTMLElement {
       ['Sunset', cache.sunset ? this.formatTime(cache.sunset) : null],
     ].filter(([, value]) => value != null);
 
-    const statRowHtml = stats.map(([label, value]) => `
-      <div class="stat"><p class="label">${label}</p><div class="value">${value}</div></div>
+    const statHtml = stats.map(([label, value]) => `
+      <div class="stat"><p class="label">${label}</p><div class="value num">${escapeHtml(value)}</div></div>
     `).join('');
 
     const hourly = Array.isArray(cache.hourly) ? cache.hourly : [];
     const hourlyHtml = hourly.map((hour) => `
       <div class="hour">
-        <p class="label">${this.formatHourLabel(hour.time)}:00</p>
-        <i class="wi ${getWeatherIconClass(hour.condition, this.isDaytime(hour.time, cache.sunrise, cache.sunset))}" aria-hidden="true"></i>
-        <div class="cond">${hour.condition}</div>
-        <div class="value">${hour.temp != null ? `${hour.temp}°` : '--'}</div>
-        <div class="rain">${hour.precipitationProbability != null ? `${hour.precipitationProbability}%` : ''}</div>
+        <p class="label num">${escapeHtml(this.formatHourLabel(hour.time))}:00</p>
+        <i class="wi ${getWeatherIconClass(hour.condition, this.isDaytime(hour.time, cache.sunrise, cache.sunset))}" aria-label="${escapeHtml(hour.condition)}"></i>
+        <div class="value num">${hour.temp != null ? `${escapeHtml(hour.temp)}°` : '--'}</div>
+        <div class="rain num">${hour.precipitationProbability != null ? `${escapeHtml(hour.precipitationProbability)}%` : ''}</div>
       </div>
     `).join('');
 
     const forecast = Array.isArray(cache.forecast) ? cache.forecast : [];
     const dailyHtml = forecast.map((day) => `
       <div class="day-row">
-        <div class="day-name">${this.formatDayLabel(day.date)}</div>
+        <div class="day-name label">${escapeHtml(this.formatDayLabel(day.date))}</div>
         <div class="day-icon"><i class="wi ${getWeatherIconClass(day.condition, true)}" aria-hidden="true"></i></div>
-        <div class="day-cond">${day.condition}</div>
-        <div class="day-temps">${day.tempMax != null ? `${day.tempMax}°` : '--'}<span class="low">${day.tempMin != null ? `${day.tempMin}°` : '--'}</span></div>
-        <div class="day-rain">${day.precipitationProbability != null ? `${day.precipitationProbability}%` : ''}</div>
+        <div class="day-cond">${escapeHtml(day.condition)}</div>
+        <div class="day-rain num">${day.precipitationProbability != null ? `${escapeHtml(day.precipitationProbability)}%` : ''}</div>
+        <div class="day-temps num">${day.tempMax != null ? `${escapeHtml(day.tempMax)}°` : '--'}<span class="low">${day.tempMin != null ? `${escapeHtml(day.tempMin)}°` : '--'}</span></div>
       </div>
     `).join('');
 
     return `
-      ${statRowHtml ? `<div class="stat-row">${statRowHtml}</div>` : ''}
-      ${hourlyHtml ? `<div class="hourly-strip">${hourlyHtml}</div>` : ''}
-      ${dailyHtml ? `<div class="daily-list">${dailyHtml}</div>` : ''}
+      ${statHtml ? `<section><p class="label section-label">Now</p><div class="stat-grid">${statHtml}</div></section>` : ''}
+      ${hourlyHtml ? `<section><p class="label section-label">Next hours</p><div class="hourly-strip">${hourlyHtml}</div></section>` : ''}
+      ${dailyHtml ? `<section><p class="label section-label">Forecast</p><div class="daily-list">${dailyHtml}</div></section>` : ''}
     `;
   }
 
@@ -357,48 +384,87 @@ export class WeatherWidget extends HTMLElement {
   closeSetup() {
     this.isSetupOpen = false;
     this.render();
+    const setupBtn = typeof this.querySelector === 'function' ? this.querySelector('#setup-button') : null;
+    if (setupBtn && setupBtn.focus) setupBtn.focus();
   }
 
-  renderSetupDialog() {
-    const secrets = this.getSecrets();
+  renderSetupDialog(secrets) {
     const currentProvider = secrets.provider || 'openmeteo';
-
-    this.innerHTML = `
-      <div class="setup-dialog">
-        <p class="label">Weather Setup</p>
-        <select id="weather-provider" style="margin-bottom: 4px; padding: 4px; border-radius: 4px; background: var(--color-hairline, #222); color: var(--color-text, #fff); border: 1px solid var(--color-hairline, #444);">
-          <option value="openmeteo" ${currentProvider === 'openmeteo' ? 'selected' : ''}>Open-Meteo (Free, No Key)</option>
-          <option value="openweathermap" ${currentProvider === 'openweathermap' ? 'selected' : ''}>OpenWeatherMap</option>
-        </select>
-        <input type="text" id="weather-city" placeholder="City (e.g. London)" value="${secrets.city || 'London'}">
-        <input type="password" id="weather-apikey" placeholder="OpenWeatherMap API Key" value="${secrets.apiKey || ''}">
-        <div style="display: flex; gap: 8px; margin-top: 4px;">
-          <button type="button" id="save-secrets">Save</button>
-          <button type="button" id="cancel-secrets" style="background: var(--color-hairline); color: var(--color-text);">Cancel</button>
+    return `
+      <dialog class="dialog setup-dialog" aria-labelledby="weather-setup-title">
+        <div class="dialog__head">
+          <h2 class="dialog__title" id="weather-setup-title">Weather setup</h2>
+          <button type="button" class="zoom-button" id="close-secrets" aria-label="Close"><span class="icon icon--close" aria-hidden="true"></span></button>
         </div>
-      </div>
+        <form class="dialog__body" id="weather-setup-form">
+          <label class="field">
+            <span class="label">Provider</span>
+            <select id="weather-provider" class="select">
+              <option value="openmeteo" ${currentProvider === 'openmeteo' ? 'selected' : ''}>Open-Meteo (free, no key)</option>
+              <option value="openweathermap" ${currentProvider === 'openweathermap' ? 'selected' : ''}>OpenWeatherMap</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="label">City</span>
+            <input type="text" id="weather-city" class="input" autofocus placeholder="London" value="${escapeHtml(secrets.city || 'London')}">
+          </label>
+          <label class="field">
+            <span class="label">API key</span>
+            <input type="password" id="weather-apikey" class="input" autocomplete="off" value="${escapeHtml(secrets.apiKey || '')}">
+            <p class="hint">Only needed for OpenWeatherMap. Stored in this browser only.</p>
+          </label>
+          <div class="form-actions">
+            <button type="button" id="cancel-secrets" class="button-secondary">Cancel</button>
+            <button type="submit" id="save-secrets" class="button-primary">Save</button>
+          </div>
+        </form>
+      </dialog>
     `;
+  }
 
-    const saveBtn = this.querySelector('#save-secrets');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        const providerInput = this.querySelector('#weather-provider');
-        const cityInput = this.querySelector('#weather-city');
-        const keyInput = this.querySelector('#weather-apikey');
+  saveSetup() {
+    const providerInput = this.querySelector('#weather-provider');
+    const cityInput = this.querySelector('#weather-city');
+    const keyInput = this.querySelector('#weather-apikey');
 
-        const provider = providerInput ? providerInput.value : 'openmeteo';
-        const city = cityInput ? cityInput.value.trim() : 'London';
-        const apiKey = keyInput ? keyInput.value.trim() : '';
+    const provider = providerInput ? providerInput.value : 'openmeteo';
+    const city = cityInput ? cityInput.value.trim() : 'London';
+    const apiKey = keyInput ? keyInput.value.trim() : '';
 
-        this.configManager.setSecret('weather', { provider, city, apiKey });
+    this.configManager.setSecret('weather', { provider, city, apiKey });
+    this.fetchState = 'loading';
+    this.closeSetup();
+    this.fetchWeatherStaleWhileRevalidate(true);
+  }
+
+  bindSetupDialog() {
+    const dialog = this.querySelector('.setup-dialog');
+    if (dialog) {
+      // showModal moves focus into the dialog, traps it and handles Escape.
+      if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+      dialog.addEventListener('cancel', (e) => {
+        e.preventDefault();
         this.closeSetup();
-        this.fetchWeatherStaleWhileRevalidate(true);
+      });
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) this.closeSetup();
       });
     }
 
-    const cancelBtn = this.querySelector('#cancel-secrets');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => this.closeSetup());
+    const form = this.querySelector('#weather-setup-form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveSetup();
+      });
+    } else {
+      const saveBtn = this.querySelector('#save-secrets');
+      if (saveBtn) saveBtn.addEventListener('click', () => this.saveSetup());
+    }
+
+    for (const sel of ['#cancel-secrets', '#close-secrets']) {
+      const btn = this.querySelector(sel);
+      if (btn) btn.addEventListener('click', () => this.closeSetup());
     }
   }
 
@@ -581,12 +647,16 @@ export class WeatherWidget extends HTMLElement {
 
       if (weatherRecord) {
         this.storage.set('weather:cache', weatherRecord);
-        if (!this.isSetupOpen) this.render();
+        this.fetchState = 'ok';
+      } else {
+        this.fetchState = 'error';
       }
     } catch (err) {
-      // Quiet fail / fallback to stale cache
+      // Keep showing the stale cache; the readout marks the update as failed.
       if (timeoutId) clearTimeout(timeoutId);
+      this.fetchState = 'error';
     }
+    if (!this.isSetupOpen) this.render();
   }
 }
 
