@@ -9,6 +9,8 @@ export const DEFAULT_TODOS = [
   { id: 't5', text: 'Pick accent color', done: true }
 ];
 
+const VIEW_KEY = 'app:todo:view';
+
 export class TodoApp extends HTMLElement {
   static manifest = {
     id: 'todo',
@@ -23,21 +25,33 @@ export class TodoApp extends HTMLElement {
   constructor() {
     super();
     this.storage = storage;
-    this.unsubscribe = null;
+    this.unsubscribes = [];
   }
 
   connectedCallback() {
     this.render();
     if (this.storage && this.storage.subscribe) {
-      this.unsubscribe = this.storage.subscribe('app:todo', () => this.render());
+      this.unsubscribes = [
+        this.storage.subscribe('app:todo', () => this.render()),
+        this.storage.subscribe(VIEW_KEY, () => this.render()),
+      ];
     }
   }
 
   disconnectedCallback() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
+    this.unsubscribes.forEach(off => off && off());
+    this.unsubscribes = [];
+  }
+
+  // View preference, kept apart from the task list. Completed tasks are hidden by default.
+  getShowCompleted() {
+    const view = this.storage.get(VIEW_KEY, null);
+    return !!(view && view.showCompleted);
+  }
+
+  toggleShowCompleted() {
+    this.storage.set(VIEW_KEY, { showCompleted: !this.getShowCompleted() });
+    this.render();
   }
 
   getTodos() {
@@ -58,13 +72,12 @@ export class TodoApp extends HTMLElement {
     this.storage.set('app:todo', todos);
   }
 
-  // Mark the task you're working on now. Only one at a time; click again to clear.
+  // Mark a task as in progress, or clear it. Any number of open tasks can be in progress.
   toggleActive(id) {
     const todos = this.getTodos();
     const target = todos.find(t => t.id === id);
     if (!target || target.done) return;
-    const turnOn = !target.active;
-    this.storage.set('app:todo', todos.map(t => ({ ...t, active: turnOn && t.id === id })));
+    this.storage.set('app:todo', todos.map(t => (t.id === id ? { ...t, active: !t.active } : t)));
   }
 
   addTodo(text) {
@@ -80,8 +93,11 @@ export class TodoApp extends HTMLElement {
 
   render() {
     const todos = this.getTodos();
+    const showCompleted = this.getShowCompleted();
+    const doneCount = todos.filter(t => t.done).length;
+    const visible = showCompleted ? todos : todos.filter(t => !t.done);
 
-    const itemsHtml = todos.map(item => {
+    const itemsHtml = visible.map(item => {
       const id = escapeHtml(item.id);
       const text = escapeHtml(item.text);
       const active = !!item.active && !item.done;
@@ -97,9 +113,16 @@ export class TodoApp extends HTMLElement {
       </li>`;
     }).join('');
 
-    const listHtml = todos.length
-      ? `<ul class="todo-list">${itemsHtml}</ul>`
-      : '<p class="label empty-state">Nothing to do</p>';
+    let listHtml;
+    if (visible.length) listHtml = `<ul class="todo-list">${itemsHtml}</ul>`;
+    else if (doneCount) listHtml = '<p class="label empty-state">All done</p>';
+    else listHtml = '<p class="label empty-state">Nothing to do</p>';
+
+    const completedToggleHtml = doneCount ? `
+      <button type="button" class="todo-completed-toggle" data-action="toggle-completed" aria-pressed="${showCompleted}">
+        <span class="label">Completed · ${doneCount}</span>
+        <span class="todo-completed-toggle__value">${showCompleted ? 'Hide' : 'Show'}</span>
+      </button>` : '';
 
     this.innerHTML = `
       <style>
@@ -209,6 +232,24 @@ export class TodoApp extends HTMLElement {
           background: var(--color-accent);
           border-color: var(--color-accent);
         }
+        .app-todo .todo-completed-toggle {
+          flex: none;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          height: 3.2rem;
+          margin-top: auto;
+          border-top: 1px solid var(--color-line);
+        }
+        .app-todo .todo-completed-toggle__value {
+          font-family: var(--font-mono);
+          font-size: var(--text-2xs);
+          letter-spacing: var(--track-label);
+          text-transform: uppercase;
+          color: var(--color-ink-muted);
+        }
+        .app-todo .todo-completed-toggle:hover .todo-completed-toggle__value { color: var(--color-ink); }
         .app-todo .todo-item.done .todo-text {
           color: var(--color-ink-faint);
           text-decoration: line-through;
@@ -226,6 +267,7 @@ export class TodoApp extends HTMLElement {
         <span class="keyhint" aria-hidden="true">Enter</span>
       </div>
       ${listHtml}
+      ${completedToggleHtml}
     `;
 
     if (typeof this.querySelectorAll === 'function') {
@@ -247,6 +289,15 @@ export class TodoApp extends HTMLElement {
           const again = this.querySelector(`[data-action="toggle-active"][data-id="${CSS.escape(id)}"]`);
           if (again) again.focus();
         });
+      });
+    }
+
+    const completedToggle = typeof this.querySelector === 'function' ? this.querySelector('[data-action="toggle-completed"]') : null;
+    if (completedToggle && completedToggle.addEventListener) {
+      completedToggle.addEventListener('click', () => {
+        this.toggleShowCompleted();
+        const again = this.querySelector('[data-action="toggle-completed"]');
+        if (again) again.focus();
       });
     }
 
