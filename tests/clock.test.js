@@ -33,9 +33,12 @@ test('ClockWidget defines static manifest and updates time', async () => {
   assert.strictEqual(ClockWidget.manifest.type, 'widget');
 
   const clock = new ClockWidget();
+  clock.storage = { get: (key, fallback) => fallback, set: () => {}, subscribe: () => () => {} };
   clock.connectedCallback();
   assert.ok(clock.innerHTML.includes('Clock'));
   assert.ok(clock.innerHTML.includes('live-dot'));
+  assert.ok(clock.innerHTML.includes('data-action="open-alarm"'), 'alarm control is rendered');
+  assert.ok(clock.innerHTML.includes('data-action="open-timer"'), 'timer control is rendered');
 
   clock.disconnectedCallback();
 });

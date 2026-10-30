@@ -12,6 +12,7 @@
 - ⚡ **Self-Generating Config**: Auto-initializes `localStorage` config (`dashboard:config`) on a responsive 12-column grid layout without external HTTP fetch requirements.
 - 🔄 **Cross-Tab Reactivity**: Built-in `storage` event listeners for real-time synchronization across open browser tabs.
 - 🔑 **Secrets Setup Dialog**: Inline setup dialog for modules requiring secrets/provider selection (e.g. Weather provider choice, city, unit system, and API key).
+- ⏰ **Alarm & Countdown Timer**: The clock has a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs; when one goes off the clock shows a Dismiss banner and beeps for up to a minute (sound needs one click on the page first, per browser autoplay rules).
 - 🔍 **Accessible Modal Expansion**: Hover-to-expand UI with native `document.startViewTransition` support, SVG zoom iconography, focus handling, and `Escape` key dismissal.
 
 ---
@@ -51,6 +52,7 @@ All data is stored in your browser's `localStorage` under namespaced keys:
 - `dashboard:config`: Grid dimensions (12-column), enabled modules, and secret settings.
 - `dashboard:app:todo`: List of task items and completion states.
 - `dashboard:app:bookmarks`: Saved links, domains, inline editing state.
+- `dashboard:clock`: Daily alarm (time, on/off, last day it rang), countdown timer (running end time or paused remainder) and the current ringing state.
 - `dashboard:weather:cache`: Stale-while-revalidate cached weather reading (Open-Meteo or OpenWeatherMap).
 
 ---
