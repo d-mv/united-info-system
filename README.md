@@ -12,7 +12,7 @@
 - ⚡ **Self-Generating Config**: Auto-initializes `localStorage` config (`dashboard:config`) on a responsive 12-column grid layout without external HTTP fetch requirements.
 - 🔄 **Cross-Tab Reactivity**: Built-in `storage` event listeners for real-time synchronization across open browser tabs.
 - 🔑 **Secrets Setup Dialog**: Inline setup dialog for modules requiring secrets/provider selection (e.g. Weather provider choice, city, unit system, and API key).
-- ⏰ **Alarm & Countdown Timer**: The clock has a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs; when one goes off the clock shows a Dismiss banner and beeps for up to a minute (sound needs one click on the page first, per browser autoplay rules).
+- ⏰ **Alarm & Countdown Timer**: The clock has a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs; the Alarm row shows time left until it rings. When one goes off the clock shows a Dismiss banner, beeps for up to a minute (sound needs one click on the page first, per browser autoplay rules) and sends a browser notification (permission is asked when you first set an alarm or start a timer).
 - 🔍 **Accessible Modal Expansion**: Hover-to-expand UI with native `document.startViewTransition` support, SVG zoom iconography, focus handling, and `Escape` key dismissal.
 
 ---

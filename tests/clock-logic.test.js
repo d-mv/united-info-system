@@ -10,6 +10,8 @@ import {
   timerFinished,
   formatCountdown,
   localDateKey,
+  msUntilAlarm,
+  formatTimeLeft,
 } from '../widgets/clock/clock-logic.js';
 
 // 2026-10-29 07:30:00 local time
@@ -74,4 +76,25 @@ test('countdown formats as MM:SS, or H:MM:SS above an hour, rounding up', () => 
   assert.strictEqual(formatCountdown(59000), '00:59');
   assert.strictEqual(formatCountdown(0), '00:00');
   assert.strictEqual(formatCountdown(3723000), '1:02:03');
+});
+
+test('time until alarm counts to today, or to tomorrow once passed or already rung', () => {
+  const alarm = { time: '07:30', enabled: true, lastFiredDate: null };
+  assert.strictEqual(msUntilAlarm(alarm, at(5, 0)), (2 * 60 + 30) * 60000);
+  assert.strictEqual(msUntilAlarm(alarm, at(8, 0)), (23 * 60 + 30) * 60000);
+  assert.strictEqual(
+    msUntilAlarm({ ...alarm, lastFiredDate: localDateKey(at(7, 30)) }, at(7, 30, 30)),
+    24 * 3600000 - 30000,
+    'rang today -> next is tomorrow'
+  );
+  assert.strictEqual(msUntilAlarm({ ...alarm, enabled: false }, at(5, 0)), null);
+  assert.strictEqual(msUntilAlarm({ time: 'bad', enabled: true }, at(5, 0)), null);
+});
+
+test('time left formats as hours and minutes, rounding up to the minute', () => {
+  assert.strictEqual(formatTimeLeft((9 * 60 + 12) * 60000), '9h 12m');
+  assert.strictEqual(formatTimeLeft(9 * 3600000), '9h 0m');
+  assert.strictEqual(formatTimeLeft(12 * 60000 + 1), '13m');
+  assert.strictEqual(formatTimeLeft(30000), '1m');
+  assert.strictEqual(formatTimeLeft(0), '0m');
 });

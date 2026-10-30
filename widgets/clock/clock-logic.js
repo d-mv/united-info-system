@@ -44,6 +44,29 @@ export function armAlarm(time, now) {
   return { time, enabled: true, lastFiredDate: passed ? localDateKey(now) : null };
 }
 
+/**
+ * Milliseconds until the alarm next rings, or null if it's off or invalid.
+ * Today's time if still ahead and not yet rung, otherwise the same time tomorrow.
+ */
+export function msUntilAlarm(alarm, now) {
+  if (!alarm || !alarm.enabled) return null;
+  const today = alarmTimeToday(alarm.time, now);
+  if (today === null) return null;
+  if (today > now && alarm.lastFiredDate !== localDateKey(now)) return today - now;
+  // Step the calendar date rather than adding 24h, so DST changes stay correct.
+  const next = new Date(today);
+  next.setDate(next.getDate() + 1);
+  return next.getTime() - now;
+}
+
+/** '9h 12m' or '13m'. Rounds up so it never shows 0m before the alarm. */
+export function formatTimeLeft(ms) {
+  const totalMin = Math.ceil(Math.max(0, ms) / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export function resetTimer(durationMs) {
   return { state: 'idle', durationMs, endsAt: null, remainingMs: durationMs };
 }

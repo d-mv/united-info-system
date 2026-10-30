@@ -10,7 +10,15 @@ import {
   timerFinished,
   formatCountdown,
   localDateKey,
+  msUntilAlarm,
+  formatTimeLeft,
 } from './clock-logic.js';
+import {
+  requestNotifyPermission,
+  showRingNotification,
+  closeRingNotification,
+  notificationsBlocked,
+} from './clock-notify.js';
 
 const STORAGE_KEY = 'clock';
 const DEFAULT_TIMER_MS = 5 * 60 * 1000;
@@ -88,7 +96,9 @@ export class ClockWidget extends HTMLElement {
       this.addEventListener('cancel', this._onCancel, true);
     }
     if (this.storage && this.storage.subscribe) {
-      this.unsubscribe = this.storage.subscribe(STORAGE_KEY, () => {
+      this.unsubscribe = this.storage.subscribe(STORAGE_KEY, (value) => {
+        // Dismissed here or in another tab: take the system notification down too.
+        if (!value || !value.ringing) closeRingNotification();
         // Don't wipe what the user is typing in an open dialog.
         if (!this.openDialog) this.render();
       });
@@ -192,6 +202,7 @@ export class ClockWidget extends HTMLElement {
           letter-spacing: var(--track-tight);
           line-height: 1;
         }
+        .clock-dialog .hint { margin: 0; font-size: var(--text-xs); color: var(--color-ink-muted); }
         .clock-dialog .error { margin: 0; font-size: var(--text-xs); color: var(--color-accent); }
         .clock-dialog .form-actions__spacer { flex: 1; }
       </style>
@@ -225,7 +236,7 @@ export class ClockWidget extends HTMLElement {
     return `
       <div class="clock-status">
         <button type="button" class="clock-row" data-action="open-alarm" aria-label="Alarm: ${alarm.enabled ? escapeHtml(alarm.time) : 'off'}">
-          <span class="label">Alarm</span>
+          <span class="label">Alarm<span class="alarm-left">${this.alarmLeftText(alarm, now)}</span></span>
           <span class="clock-row__value${alarm.enabled ? ' is-active' : ''}">${alarm.enabled ? escapeHtml(alarm.time) : 'Off'}</span>
         </button>
         <button type="button" class="clock-row" data-action="open-timer" aria-label="Timer">
@@ -234,6 +245,17 @@ export class ClockWidget extends HTMLElement {
         </button>
       </div>
     `;
+  }
+
+  blockedHint() {
+    return notificationsBlocked()
+      ? '<p class="hint">Notifications are blocked for this site in browser settings, so it will only ring on this page.</p>'
+      : '';
+  }
+
+  alarmLeftText(alarm, now) {
+    const left = msUntilAlarm(alarm, now);
+    return left === null ? '' : ` · ${formatTimeLeft(left)}`;
   }
 
   renderRinging(ringing) {
@@ -257,6 +279,7 @@ export class ClockWidget extends HTMLElement {
             <span class="label">Time · rings daily</span>
             <input type="time" name="time" class="input" value="${escapeHtml(alarm.time)}" required autofocus>
           </label>
+          ${this.blockedHint()}
           <div class="form-actions">
             ${alarm.enabled ? '<button type="button" class="action-button action-button--danger" data-action="alarm-off">Turn off</button><span class="form-actions__spacer"></span>' : ''}
             <button type="button" class="button-secondary" data-action="close-dialog">Cancel</button>
@@ -286,6 +309,7 @@ export class ClockWidget extends HTMLElement {
             <input type="number" name="seconds" class="input" min="0" max="59" value="${escapeHtml(draft.seconds)}">
           </label>
         </div>
+        ${this.blockedHint()}
         ${this.dialogError ? `<p class="error" role="alert">${escapeHtml(this.dialogError)}</p>` : ''}
         <div class="form-actions">
           <button type="button" class="button-secondary" data-action="close-dialog">Cancel</button>
@@ -350,12 +374,14 @@ export class ClockWidget extends HTMLElement {
       case 'open-timer': return this.openDialogFor('timer');
       case 'close-dialog': return this.closeDialog();
       case 'dismiss':
+        closeRingNotification();
         this.setState({ ringing: null });
         return;
       case 'alarm-off':
         this.setState({ alarm: { ...state.alarm, enabled: false } });
         return this.closeDialog();
       case 'preset': {
+        requestNotifyPermission();
         const minutes = Number(btn.dataset.minutes);
         this.setState({ timer: startTimer(resetTimer(minutes * 60 * 1000), now) });
         return this.closeDialog();
@@ -364,6 +390,7 @@ export class ClockWidget extends HTMLElement {
         this.setState({ timer: pauseTimer(state.timer, now) });
         return this.render();
       case 'timer-resume':
+        requestNotifyPermission();
         this.setState({ timer: startTimer(state.timer, now) });
         return this.render();
       case 'timer-reset':
@@ -377,6 +404,7 @@ export class ClockWidget extends HTMLElement {
     if (!form || !form.dataset || !form.dataset.form) return;
     e.preventDefault();
     unlockAudio();
+    requestNotifyPermission();
     const now = Date.now();
     const data = new FormData(form);
 
@@ -415,22 +443,23 @@ export class ClockWidget extends HTMLElement {
     const state = this.getState();
 
     if (!state.ringing && alarmDue(state.alarm, now)) {
-      this.setState({
-        alarm: { ...state.alarm, lastFiredDate: localDateKey(now) },
-        ringing: { kind: 'alarm', label: `Alarm · ${state.alarm.time}`, since: now },
-      });
+      const ringing = { kind: 'alarm', label: `Alarm · ${state.alarm.time}`, since: now };
+      this.setState({ alarm: { ...state.alarm, lastFiredDate: localDateKey(now) }, ringing });
+      showRingNotification(ringing);
       if (this.openDialog) this.render();
       return;
     }
 
     if (timerFinished(state.timer, now)) {
-      this.setState({
-        timer: resetTimer(state.timer.durationMs),
-        ringing: { kind: 'timer', label: 'Timer done', since: now },
-      });
+      const ringing = { kind: 'timer', label: 'Timer done', since: now };
+      this.setState({ timer: resetTimer(state.timer.durationMs), ringing });
+      showRingNotification(ringing);
       if (this.openDialog) this.render();
       return;
     }
+
+    const alarmLeftEl = typeof this.querySelector === 'function' ? this.querySelector('.alarm-left') : null;
+    if (alarmLeftEl) alarmLeftEl.textContent = this.alarmLeftText(state.alarm, now);
 
     if (state.timer.state === 'running' && typeof this.querySelectorAll === 'function') {
       const text = formatCountdown(timerRemaining(state.timer, now));
