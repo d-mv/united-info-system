@@ -51,10 +51,20 @@ export class TodoApp extends HTMLElement {
 
   toggleTodo(id) {
     const todos = this.getTodos().map(t => {
-      if (t.id === id) return { ...t, done: !t.done };
+      // Finishing a task ends "in progress" for it.
+      if (t.id === id) return { ...t, done: !t.done, active: false };
       return t;
     });
     this.storage.set('app:todo', todos);
+  }
+
+  // Mark the task you're working on now. Only one at a time; click again to clear.
+  toggleActive(id) {
+    const todos = this.getTodos();
+    const target = todos.find(t => t.id === id);
+    if (!target || target.done) return;
+    const turnOn = !target.active;
+    this.storage.set('app:todo', todos.map(t => ({ ...t, active: turnOn && t.id === id })));
   }
 
   addTodo(text) {
@@ -73,11 +83,17 @@ export class TodoApp extends HTMLElement {
 
     const itemsHtml = todos.map(item => {
       const id = escapeHtml(item.id);
+      const text = escapeHtml(item.text);
+      const active = !!item.active && !item.done;
+      const toggle = item.done ? '' : `
+        <button type="button" class="todo-now${active ? ' is-active' : ''}" data-action="toggle-active" data-id="${id}"
+          aria-pressed="${active}" aria-label="${active ? 'Stop working on' : 'Working on'} ${text}"
+          title="${active ? 'In progress' : 'Mark in progress'}"><span class="todo-now__dot" aria-hidden="true"></span></button>`;
       return `
-      <li class="todo-item${item.done ? ' done' : ''}">
+      <li class="todo-item${item.done ? ' done' : ''}${active ? ' is-active' : ''}">
         <input type="checkbox" class="todo-check" id="todo-${id}" data-id="${id}" ${item.done ? 'checked' : ''}>
-        <label for="todo-${id}" class="todo-text">${escapeHtml(item.text)}</label>
-        ${item.active && !item.done ? '<span class="live-dot" aria-label="In progress"></span>' : ''}
+        <label for="todo-${id}" class="todo-text">${text}</label>
+        ${toggle}
       </li>`;
     }).join('');
 
@@ -166,6 +182,33 @@ export class TodoApp extends HTMLElement {
           cursor: pointer;
           overflow-wrap: anywhere;
         }
+        .app-todo .todo-now {
+          flex: none;
+          display: grid;
+          place-content: center;
+          width: 2.4rem;
+          height: 2.4rem;
+          opacity: 0;
+          transition: opacity var(--duration) var(--ease);
+        }
+        .app-todo .todo-item:hover .todo-now,
+        .app-todo .todo-now:focus-visible,
+        .app-todo .todo-now.is-active { opacity: 1; }
+        @media (hover: none) {
+          .app-todo .todo-now { opacity: 1; }
+        }
+        .app-todo .todo-now__dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          border: 1px solid var(--color-ink-faint);
+          transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
+        }
+        .app-todo .todo-now:hover .todo-now__dot { border-color: var(--color-accent); }
+        .app-todo .todo-now.is-active .todo-now__dot {
+          background: var(--color-accent);
+          border-color: var(--color-accent);
+        }
         .app-todo .todo-item.done .todo-text {
           color: var(--color-ink-faint);
           text-decoration: line-through;
@@ -191,6 +234,18 @@ export class TodoApp extends HTMLElement {
         cb.addEventListener('change', (e) => {
           const id = e.target.getAttribute('data-id');
           if (id) this.toggleTodo(id);
+        });
+      });
+    }
+
+    if (typeof this.querySelectorAll === 'function') {
+      this.querySelectorAll('[data-action="toggle-active"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          this.toggleActive(id);
+          // The list re-rendered; keep keyboard focus on the same toggle.
+          const again = this.querySelector(`[data-action="toggle-active"][data-id="${CSS.escape(id)}"]`);
+          if (again) again.focus();
         });
       });
     }
