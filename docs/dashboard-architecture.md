@@ -27,22 +27,29 @@
 /index.html                 # the shell — grid container, inline critical CSS
 /core/
   grid.js                   # layout engine — reads config, places modules into the shell
-  registry.js                # module id -> { type, load } map
-  storage.js                 # thin localStorage wrapper, namespaced keys
-  config.js                  # initializes/manages auto-generated config in localStorage
-  expand.js                  # accessible modal expansion & focus controller
+  registry.js               # module id -> { type, load } map
+  storage.js                # thin localStorage wrapper, namespaced keys, change subscriptions
+  config.js                 # initializes/migrates the auto-generated config in localStorage
+  expand.js                 # zoom-to-full-page toggle + Escape
+  html.js                   # escapeHtml / safeHref for values interpolated into markup
+  theme.css                 # design tokens + shared primitives (§11)
 /apps/
-  todo/
-    todo-app.js               # defines <app-todo>
-  bookmarks/
-    bookmarks-app.js          # defines <app-bookmarks>
+  todo/todo-app.js          # defines <app-todo>
+  bookmarks/bookmarks-app.js # defines <app-bookmarks>
 /widgets/
   clock/
-    clock-widget.js           # defines <widget-clock>
+    clock-widget.js         # defines <widget-clock>
+    clock-logic.js          # pure alarm/timer rules (no DOM)
+    clock-notify.js         # Notification API wrapper
   weather/
-    weather-widget.js         # defines <widget-weather>
-/start.sh                    # zero-dependency Ruby static server executable
-/README.md                   # clone + run instructions
+    weather-widget.js       # defines <widget-weather>
+    font/                   # Weather Icons webfont (LICENSE.txt alongside)
+/fonts/                     # self-hosted Space Grotesk + IBM Plex Mono (OFL)
+/assets/                    # SVG icons used as CSS masks
+/tests/                     # node --test suites (mock DOM)
+/docs/                      # this doc, visual reference, drafts for future modules
+/start.sh                   # zero-dependency Ruby static server executable
+/README.md                  # clone + run instructions
 ```
 
 No `src/`, no `dist/`. What's on disk is what runs.
@@ -95,7 +102,9 @@ customElements.define('widget-clock', ClockWidget);
 
 **Why not Shadow DOM:** CSS custom properties (theme tokens — spacing, type scale, color) pierce shadow boundaries fine, but given the "seamless, no borders" requirement, light DOM keeps styling simpler — one global stylesheet governs module internals rather than duplicating tokens per shadow root. Revisit only if a module needs true style isolation.
 
-**Manifest fields:**
+The snippet above shows the shape; the real modules render with `innerHTML` templates and an inline `<style>` block each.
+
+**Manifest fields** (each module declares a `static manifest`, but `grid.js` doesn't read it yet — placement comes from `dashboard:config`; see §5):
 
 | field | meaning |
 |---|---|
@@ -105,9 +114,9 @@ customElements.define('widget-clock', ClockWidget);
 | `defaultCol` / `defaultRow` | 1-indexed default placement |
 | `expandable` | whether the hover-zoom-to-fullpage affordance applies |
 
-Standard modules in the 12-column layout:
+Default placements in the 12-column layout (`DEFAULT_CONFIG.modules` in `core/config.js`):
 - `clock`: `2×2` (`col: 1, row: 1`)
-- `weather`: `2×2` (`col: 1, row: 2`)
+- `weather`: `2×2` (`col: 1, row: 3`)
 - `bookmarks`: `4×4` (`col: 3, row: 1`)
 - `todo`: `6×4` (`col: 7, row: 1`)
 
@@ -132,7 +141,9 @@ This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs
 }
 ```
 
-`core/grid.js` reads each module's manifest, sets the four custom properties inline per element, and appends it to `#shell`. `--grid-cols` and `--cell-size` come from `config.local.json` so the grid density is user-tunable without touching code.
+`core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. It re-renders the whole shell whenever the config changes.
+
+**Current gap:** `grid.js` intends to set `--grid-cols`, `--cell-size` and `--module-padding` from `config.grid`, but assigns them via `style['--x']`, which browsers ignore. The effective values are the defaults in `core/theme.css` (12 columns, 100px cells). The fix is `style.setProperty()`. The grid is also not responsive on narrow screens yet.
 
 ---
 
@@ -172,36 +183,26 @@ export const registry = {
 `localStorage`, namespaced to avoid collisions:
 
 ```
-dashboard:config            # auto-generated app config (modules, grid density, API settings)
-dashboard:layout            # module positions/sizes if user rearranges
-dashboard:app:todo          # todo items
+dashboard:config            # auto-generated config: version, grid, modules (enabled + placement), secrets
+dashboard:clock             # alarm, countdown timer, ringing state
+dashboard:weather:cache     # last-known weather reading
+dashboard:app:todo          # todo items: { id, text, done, active }
+dashboard:app:todo:view     # { showCompleted }
 dashboard:app:bookmarks     # bookmark list
-dashboard:weather:cache     # { data, fetchedAt } — last-known reading
 ```
 
-`core/storage.js` wraps `get`/`set`/`remove` with the namespace prefix and JSON parse/stringify, so modules never touch `localStorage` directly.
+`core/storage.js` wraps `get`/`set`/`remove` with the namespace prefix and JSON parse/stringify, so modules never touch `localStorage` directly. `subscribe(key, cb)` fires on same-tab writes and on `storage` events from other tabs; modules subscribe to their key and re-render, which is how cross-tab sync works.
 
 **Config Strategy:**
 No external `config.local.json` is fetched over HTTP. When the app boots, `core/config.js` checks `dashboard:config` in `localStorage`. If missing (e.g. first cold-open), `core/config.js` generates the default configuration, persists it to `localStorage`, and returns it synchronously. This guarantees zero network latency during startup, eliminates 404 setup errors, and establishes a single portable data structure ready for future sync integration.
+
+Layout isn't user-editable yet. When `DEFAULT_CONFIG.modules` changes, bump `CONFIG_VERSION`; `_migrate()` then resets saved configs to the new layout while keeping enabled flags, grid settings and secrets.
 
 ---
 
 ## 9. Hover-to-Expand
 
-Showing the button is pure CSS — no `mouseenter` listener needed:
-
-```css
-[data-module] .zoom-button {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-[data-module]:hover .zoom-button {
-  opacity: 1;
-  pointer-events: auto;
-}
-```
+Showing the button is pure CSS — no `mouseenter` listener needed. Header actions (`.block-header__actions`, which hold the zoom button) are hidden until the module is hovered, has focus inside it, or is expanded; on touch screens (`@media (hover: none)`) they're always visible.
 
 JS in `core/expand.js` (`setupExpandController()`) delegates document click and keydown events for modal toggling:
 
@@ -245,7 +246,9 @@ export function setupExpandController() {
 }
 ```
 
-`.expanded` switches the module to a fixed, full-viewport position via CSS. `startViewTransition` gives the native morph/zoom feel in Chromium and recent Safari; browsers without support (older Firefox) just snap — acceptable degradation, not worth a JS animation library for.
+Escape does nothing while a `<dialog>` is open, so closing a dialog doesn't also collapse the module behind it.
+
+`.expanded` switches the module to a fixed, full-viewport position via CSS; `body.modal-open` locks page scroll and adds a scrim. Focus is not moved into the expanded module or returned afterwards, and the button has no `aria-expanded` yet (tracked as debt). `startViewTransition` gives the native morph/zoom feel in Chromium and recent Safari; browsers without support (older Firefox) just snap — acceptable degradation, not worth a JS animation library for.
 
 ---
 
@@ -258,10 +261,24 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 3. On mount, render last-known cached reading from `dashboard:weather:cache` immediately (stale-while-revalidate).
 4. Fetch in the background with a short timeout (~3s) using `AbortController`.
 5. On success: update cache + DOM.
-6. On failure/timeout: leave the stale reading visible, with a subtle "As of [time]" note — never a blocking spinner, never an error state that competes visually with the rest of the dashboard.
-7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`.
+6. On failure/timeout: leave the stale reading visible with its "As of [time]" note plus "Update failed" — never a blocking spinner. With no cache at all, show "Weather unavailable" and a Retry button. OpenWeatherMap without a key shows a prompt to open setup.
+7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`. The setup dialog edits provider, city and API key; units come from config (default `metric`) and have no selector yet.
+
+**Known gaps:** the cache is a single reading not keyed by provider/city/units, so it can briefly show data for the previous city after a change. The default city is `Porto` in config but the dialog and fetch fall back to `London` when unset.
 
 ---
+
+## 10a. Clock Widget — Alarm & Timer
+
+- `clock-logic.js` holds the rules as pure functions, tested without a DOM. The alarm is a daily `HH:MM`; it counts as due within a 5-minute grace window (background tabs throttle timers) and records `lastFiredDate` so it rings once per day. Setting a time that already passed today arms it for tomorrow. The timer stores an absolute `endsAt` while running and the remaining time while paused, so reloads don't drift.
+- State lives in `dashboard:clock`, so every open tab ticks the same alarm/timer; dismissing in one tab dismisses in all.
+- Ringing shows a Dismiss banner and beeps via Web Audio for up to a minute. Browsers only allow sound after a user gesture, so the `AudioContext` is unlocked by clicks inside the widget.
+- `clock-notify.js` sends a system notification (permission is requested on the set-alarm / start-timer gesture). The fixed tag `uis-clock` stops several tabs from stacking duplicates, and the notification is closed on dismiss, including from another tab.
+
+## 10b. Todo App
+
+- Items are `{ id, text, done, active }`. `active` means "in progress"; any number of tasks can be active, and it's cleared when a task is completed.
+- Completed tasks are hidden by default. The "Completed · N" footer row toggles `dashboard:app:todo:view.showCompleted`.
 
 ## 11. Visual System — Light/Dark Theme
 
@@ -284,7 +301,7 @@ Tokens live in `core/theme.css`. The visual language is **Braun / Dieter Rams**,
 
 Decided: no launchd agent, no auto-start. The static server is started manually per session.
 
-- Document a single copy-pasteable command in `README.md`: `./start.sh 8000`. No wrapper script required unless you want a fish abbreviation later for convenience.
+- Document a single copy-pasteable command in `README.md`: `./start.sh`. No wrapper script required unless you want a fish abbreviation later for convenience.
 - Practical implication: the browser homepage will only load correctly if the server happens to be running. Worth a one-line note in the README (and maybe a friendly "server not running" fallback message baked into `index.html` via a fetch-self health check, or just accepted as a known rough edge for v1) — your call whether that's worth the complexity now or later.
 
 ---
@@ -294,6 +311,8 @@ Decided: no launchd agent, no auto-start. The static server is started manually 
 1. Decide the type: **app** (functional — real state, persistence, or interaction) or **widget** (display-first, minimal/no interaction).
 2. Create `/apps/<id>/<id>-app.js` or `/widgets/<id>/<id>-widget.js`, define the custom element + `static manifest` (including `type`).
 3. Register it in `core/registry.js` with its `type` and `load` path.
-4. Add `<id>` to the default modules list in `core/config.js` (and `dashboard:config` in `localStorage`).
+4. Add `<id>` with its placement to `DEFAULT_CONFIG.modules` in `core/config.js` and bump `CONFIG_VERSION` so existing saved configs pick it up.
 5. If it persists state, add a namespaced key via `core/storage.js` — don't touch `localStorage` directly.
 6. If it's network-bound, follow the stale-while-revalidate pattern from §10 — no module should block paint.
+7. Escape every user or API value interpolated into markup with `core/html.js`.
+8. Add a `tests/<id>.test.js` suite (`node --test`).

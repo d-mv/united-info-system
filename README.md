@@ -1,66 +1,86 @@
 # United InfoSystem (UIS)
 
-> A modular, fast-booting, zero-dependency local browser dashboard built with native Web Components, CSS Grid, and zero build tools.
+> A fast, local browser start page built from native Web Components and CSS Grid. No build step, no dependencies.
 
 ---
 
-## Features
+## Modules
 
-- ⚡ **Cold-Open Fast**: Sub-100ms first paint with critical inlined CSS and no build step.
-- 🧱 **Web Components**: Modular Custom Elements for Apps (`<app-todo>`, `<app-bookmarks>`) and Widgets (`<widget-clock>`, `<widget-weather>`).
-- 🌤️ **Dual Weather Providers**: Built-in support for zero-config Open-Meteo (free, no API key required) as well as OpenWeatherMap with API key.
-- ⚡ **Self-Generating Config**: Auto-initializes `localStorage` config (`dashboard:config`) on a responsive 12-column grid layout without external HTTP fetch requirements.
-- 🔄 **Cross-Tab Reactivity**: Built-in `storage` event listeners for real-time synchronization across open browser tabs.
-- 🔑 **Secrets Setup Dialog**: Inline setup dialog for modules requiring secrets/provider selection (e.g. Weather provider choice, city, unit system, and API key).
-- ⏰ **Alarm & Countdown Timer**: The clock has a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs; the Alarm row shows time left until it rings. When one goes off the clock shows a Dismiss banner, beeps for up to a minute (sound needs one click on the page first, per browser autoplay rules) and sends a browser notification (permission is asked when you first set an alarm or start a timer).
-- 🔍 **Accessible Modal Expansion**: Hover-to-expand UI with native `document.startViewTransition` support, SVG zoom iconography, focus handling, and `Escape` key dismissal.
+- **Clock** (`<widget-clock>`): current time, a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs. The Alarm row shows time left until it rings. When one goes off, the clock shows a Dismiss banner, beeps for up to a minute and sends a browser notification. Sound needs one click on the page first (browser autoplay rules); notification permission is asked the first time you set an alarm or start a timer.
+- **Weather** (`<widget-weather>`): current conditions and forecast from Open-Meteo (default, free, no API key) or OpenWeatherMap (needs an API key). The setup dialog picks provider, city and key. The last reading is cached and shown immediately on load; if a refresh fails, it stays visible marked "Update failed".
+- **Todo** (`<app-todo>`): add and complete tasks (there is no delete yet). Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
+- **Bookmarks** (`<app-bookmarks>`): add, edit and delete links.
+
+## Shell
+
+- **Fast cold open**: critical CSS is inlined, modules load lazily and render into pre-sized skeleton cells. A module that fails to load shows an error in its own cell without breaking the rest.
+- **Config without setup**: on first open the default config (`dashboard:config`) is written to `localStorage`. Nothing is fetched to boot.
+- **Cross-tab sync**: changes in one tab show up in other open tabs via the `storage` event.
+- **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. `Escape` collapses it.
+- **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests.
 
 ---
 
 ## Quick Start
 
-### 1. Run the Local Server
+### 1. Run the local server
 
-No `npm install`, no `package.json`, no gems needed. Requires Ruby (built into macOS / Linux stdlib). Execute `./start.sh` directly:
-
-```bash
-./start.sh
-```
-
-Alternatively, run via Ruby:
+No `npm install`, no `package.json`, no gems. Needs Ruby (preinstalled on macOS; stdlib only).
 
 ```bash
-ruby start.sh 8000
+./start.sh            # serves this folder on http://localhost:8000
+./start.sh 3000       # custom port
+./start.sh 3000 ./www # custom port and root
+ruby start.sh 8000    # if the file isn't executable
 ```
 
-The server starts at `http://localhost:8000`. You can optionally pass a custom port or root path:
+The server listens on `127.0.0.1` only.
 
-```bash
-./start.sh 3000
-```
+### 2. Open in the browser
 
-### 2. Open in Browser
-
-Navigate to [http://localhost:8000](http://localhost:8000) or set it as your browser homepage / new tab page.
+Go to [http://localhost:8000](http://localhost:8000), or set it as your homepage / new tab page. The server isn't started automatically, so the page only loads while `start.sh` is running.
 
 ---
 
-## Architecture & Data Storage
+## Data Storage
 
-All data is stored in your browser's `localStorage` under namespaced keys:
+Everything lives in the browser's `localStorage` under `dashboard:` keys:
 
-- `dashboard:config`: Grid dimensions (12-column), enabled modules, and secret settings.
-- `dashboard:app:todo`: List of task items and completion states.
-- `dashboard:app:bookmarks`: Saved links, domains, inline editing state.
-- `dashboard:clock`: Daily alarm (time, on/off, last day it rang), countdown timer (running end time or paused remainder) and the current ringing state.
-- `dashboard:weather:cache`: Stale-while-revalidate cached weather reading (Open-Meteo or OpenWeatherMap).
+| Key | Contents |
+|---|---|
+| `dashboard:config` | Config version, grid settings, enabled modules and their placement, weather settings (provider, city, units, API key). |
+| `dashboard:clock` | Daily alarm (time, on/off, last day it rang), countdown timer (end time while running, remaining time while paused) and the current ringing state. |
+| `dashboard:weather:cache` | Last weather reading. |
+| `dashboard:app:todo` | Tasks with done and in-progress flags. |
+| `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
+| `dashboard:app:bookmarks` | Saved links. |
+
+When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is bumped; older saved configs get the new layout but keep enabled flags, grid settings and weather settings.
+
+---
+
+## Known Limitations
+
+- The `grid` values in config (`columns`, `cellSize`, `padding`) aren't applied yet; the grid is fixed at 12 columns of 100px (from `core/theme.css`).
+- The grid is not responsive on narrow screens.
+- Units (metric/imperial) can only be changed by editing `dashboard:config`; the setup dialog has no units selector.
+- Expanding a module doesn't move focus into it.
 
 ---
 
 ## Testing
 
-Run the Node test suite:
-
 ```bash
 node --test tests/*.test.js
 ```
+
+Tests run in Node against a mock DOM, so they don't catch every browser-only bug.
+
+---
+
+## Docs
+
+- [`docs/dashboard-architecture.md`](docs/dashboard-architecture.md): architecture and design decisions.
+- [`docs/index.html`](docs/index.html): visual reference for the design system.
+- [`docs/v3/updates-app-design.md`](docs/v3/updates-app-design.md): draft design for a planned Updates (feeds) app.
+- `docs/v2/`: earlier version of the architecture doc and preview, kept for reference.
