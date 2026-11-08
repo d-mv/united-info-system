@@ -8,6 +8,7 @@ import { moduleName } from './registry.js';
 import { setEnabled } from './layout.js';
 import { TOGGLE_LAYOUT, LAYOUT_MODE } from './layout-editor.js';
 import { THEMES, ACCENTS, resolveAppearance } from './appearance.js';
+import { goToPage } from './pages.js';
 
 const label = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { escapeHtml } from './html.js';
@@ -38,8 +39,14 @@ export class ShellBar extends HTMLElement {
       { title: 'Export backup', keywords: 'download data json', run: () => this.exportData() },
       { title: this.layoutEditing ? 'Finish editing layout' : 'Edit layout', keywords: 'move resize arrange modules', run: () => this.toggleLayout() },
       ...THEMES.map(theme => ({ title: `Theme: ${label(theme)}`, keywords: 'appearance mode dark light', run: () => this.setAppearance({ theme }) })),
+      ...this.configManager.getPages()
+        .filter(p => p.id !== this.configManager.currentPageId())
+        .map(p => ({ title: `Go to page: ${p.name}`, keywords: 'page switch', run: () => goToPage(p.id, this.configManager) })),
+      { title: 'New page', keywords: 'add page', run: () => this.addPage() },
     ]);
     if (typeof document !== 'undefined') document.addEventListener(LAYOUT_MODE, this._onLayoutMode);
+    // Page list and names can change here or in another tab.
+    this.offConfig = this.configManager.subscribe(() => this.renderPages());
     this.render();
   }
 
@@ -60,6 +67,25 @@ export class ShellBar extends HTMLElement {
     if (typeof this.removeEventListener === 'function') this.removeEventListener('click', this._onClick);
     if (this.offCommands) this.offCommands();
     if (typeof document !== 'undefined') document.removeEventListener(LAYOUT_MODE, this._onLayoutMode);
+    if (this.offConfig) this.offConfig();
+  }
+
+  addPage(name = '') {
+    const id = this.configManager.addPage(name);
+    goToPage(id, this.configManager);
+    return id;
+  }
+
+  pagesHtml() {
+    const pages = this.configManager.getPages();
+    if (pages.length < 2) return '';
+    const current = this.configManager.currentPageId();
+    return pages.map(p => `<button type="button" class="shell-tab${p.id === current ? ' is-current' : ''}" data-action="go-page" data-id="${escapeHtml(p.id)}" ${p.id === current ? 'aria-current="page"' : ''}>${escapeHtml(p.name)}</button>`).join('');
+  }
+
+  renderPages() {
+    const nav = this.querySelector?.('.shell-bar__pages');
+    if (nav) nav.innerHTML = this.pagesHtml();
   }
 
   openSettings() {
@@ -121,6 +147,16 @@ export class ShellBar extends HTMLElement {
       }
       case 'import-confirm': return this.confirmImport();
       case 'toggle-layout': return this.toggleLayout();
+      case 'go-page': return goToPage(btn.dataset.id, this.configManager);
+      case 'add-page': {
+        const input = this.querySelector('.page-new-name');
+        this.addPage(input ? input.value : '');
+        return this.render();
+      }
+      case 'delete-page':
+        this.configManager.deletePage(btn.dataset.id);
+        goToPage(this.configManager.currentPageId(), this.configManager);
+        return this.render();
       case 'toggle-module': {
         const input = btn;
         this.toggleModule(input.dataset.id, !!input.checked);
@@ -146,6 +182,22 @@ export class ShellBar extends HTMLElement {
       </div>`;
   }
 
+  renderPageSettings() {
+    const pages = this.configManager.getPages();
+    const rows = pages.map(p => `
+      <div class="settings-row page-row">
+        <input type="text" class="input page-name" data-id="${escapeHtml(p.id)}" value="${escapeHtml(p.name)}" aria-label="Page name">
+        ${pages.length > 1 ? `<button type="button" class="action-button action-button--danger" data-action="delete-page" data-id="${escapeHtml(p.id)}" aria-label="Delete page ${escapeHtml(p.name)}">Delete</button>` : ''}
+      </div>`).join('');
+    return `
+      ${rows}
+      <div class="settings-row page-row">
+        <input type="text" class="input page-new-name" placeholder="New page name" aria-label="New page name">
+        <button type="button" class="button-secondary" data-action="add-page">Add page</button>
+      </div>
+      <p class="settings-hint">Each page has its own modules and layout; tasks, bookmarks and other data are shared. Each browser tab remembers its page (#page=… in the address).</p>`;
+  }
+
   renderAppearance() {
     const { theme, accent } = resolveAppearance(this.configManager.get().appearance);
     const themes = THEMES.map(t => `
@@ -169,8 +221,12 @@ export class ShellBar extends HTMLElement {
             <p class="label" id="settings-look">Appearance</p>
             ${this.renderAppearance()}
           </section>
+          <section class="settings-section" aria-labelledby="settings-pages">
+            <p class="label" id="settings-pages">Pages</p>
+            ${this.renderPageSettings()}
+          </section>
           <section class="settings-section" aria-labelledby="settings-modules">
-            <p class="label" id="settings-modules">Modules</p>
+            <p class="label" id="settings-modules">Modules · this page</p>
             <div class="settings-modules">
               ${this.configManager.getModules().map(m => `
                 <label class="settings-module">
@@ -196,7 +252,7 @@ export class ShellBar extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <nav class="shell-bar__pages" aria-label="Pages"></nav>
+      <nav class="shell-bar__pages" aria-label="Pages">${this.pagesHtml()}</nav>
       <div class="shell-bar__actions">
         <button type="button" class="action-button shell-bar__layout${this.layoutEditing ? ' is-active' : ''}" data-action="toggle-layout" aria-pressed="${this.layoutEditing}">${this.layoutEditing ? 'Done' : 'Edit layout'}</button>
         <button type="button" class="action-button" data-action="open-palette" aria-label="Command palette" title="Command palette (⌘K or /)">⌘K</button>
@@ -214,6 +270,20 @@ export class ShellBar extends HTMLElement {
         this.closeSettings();
       });
     }
+    this.querySelectorAll('.page-name').forEach(input => {
+      input.addEventListener('change', () => {
+        if (!this.configManager.renamePage(input.dataset.id, input.value)) {
+          input.value = (this.configManager.getPages().find(p => p.id === input.dataset.id) || {}).name || '';
+        }
+      });
+    });
+    const newName = this.querySelector('.page-new-name');
+    if (newName) newName.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      this.addPage(newName.value);
+      this.render();
+    });
     this.querySelectorAll('input[name="theme"], input[name="accent"]').forEach(radio => {
       radio.addEventListener('change', () => this.setAppearance({ [radio.name]: radio.value }));
     });

@@ -20,6 +20,7 @@
 - **Shell bar**: a slim bar above the grid. **Settings → Data** exports everything as one JSON backup file (`uis-backup-YYYY-MM-DD.json`; it includes API keys and tokens, so keep it private) and imports one back. Importing shows what the file holds and asks before it replaces all UIS data, then reloads the page.
 - **Command palette**: `⌘K` / `Ctrl+K` anywhere, `/` when not typing, or the `⌘K` button in the bar. Type to find a bookmark, mark a task done, add a task (`Add task: …`), start a timer (`10`, `10m`, `timer 25`), start Pomodoro, open Alarms, dismiss a ring, expand/collapse a module, open Settings, export a backup, or search the web (DuckDuckGo). Each module adds its own commands while it is on the page (`core/commands.js`).
 - **Layout editor**: **Edit layout** in the bar (or the palette) puts an overlay on each module: drag to move, drag the corner to resize, or focus one and use arrow keys (Shift+arrows resize); **Hide** removes it from the page. Moves that leave the grid or overlap another module are refused. **Settings → Modules** turns modules on and off. Wide windows only (below 900px the grid stacks).
+- **Pages**: several dashboards (e.g. Home, Work), each with its own modules and layout; tasks, bookmarks and other data are shared. Add, rename and delete them in **Settings → Pages**; tabs show in the bar once there are two or more, and the palette has `Go to page: …` / `New page`. A new page starts empty. Each browser tab keeps its own page (`#page=<id>` in the address, so pages can be bookmarked); new tabs open the page used last.
 - **Theme**: Auto (follows the OS), Light or Dark, plus an accent colour (red, orange, green, blue, graphite) in **Settings → Appearance**; also `Theme: …` in the palette. Colours are `light-dark()` tokens driven by `color-scheme`, and an inline script applies the saved choice before first paint. Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
 
 ---
@@ -51,7 +52,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 
 | Key | Contents |
 |---|---|
-| `dashboard:config` | Config version, grid settings, enabled modules and their placement, appearance (theme, accent), weather settings (provider, city, units, API key). |
+| `dashboard:config` | Config version, grid settings, pages (each with its enabled modules and their placement) and the last used page, appearance (theme, accent), weather settings (provider, city, units, API key). |
 | `dashboard:clock` | Alarms (time, weekdays, on/off, last day each rang), countdown timer (end time while running, remaining time while paused), Pomodoro phase, second time zone and the current ringing state. An older single `alarm` is carried over into the list if it was on. |
 | `dashboard:weather:rain-alert` | Last rain event a notification was sent for (so it isn't repeated). |
 | `dashboard:weather:cache` | Last weather reading and the provider, city and units it was fetched for (shown only while those match the settings). |
@@ -59,7 +60,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links (`title`, `url`, optional `group`). |
 
-Since config v4 the layout is yours: saved module placement is kept across updates. A module added to UIS later is appended to your layout automatically (below everything else), and modules that no longer exist are dropped (`normalizeModules` in `core/layout.js`). Configs older than v3 get the default layout but keep enabled flags, and their grid settings reset (they were never applied).
+Since config v4 the layout is yours (v5 moved it into pages; an older layout becomes the "Home" page): saved module placement is kept across updates. A module added to UIS later is appended to your layout automatically (below everything else), and modules that no longer exist are dropped (`normalizeModules` in `core/layout.js`). Configs older than v3 get the default layout but keep enabled flags, and their grid settings reset (they were never applied).
 
 ---
 

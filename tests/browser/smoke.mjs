@@ -69,6 +69,8 @@ function assert(cond, message) {
 
 async function freshPage(browser, width = 1440) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
+  // No real network: any non-local request (opened links, favicons) gets an empty page.
+  await context.route(/^https?:\/\/(?!127\.0\.0\.1[:/]|localhost[:/])/, r => r.fulfill({ status: 200, contentType: 'text/html', body: '' }));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
@@ -313,7 +315,8 @@ const checks = {
   async 'layout editor: drag, keys, refused overlap, hide, no remount'(browser) {
     const { page, errors, close } = await freshPage(browser);
     const placement = (id) => page.evaluate((id) => {
-      const m = JSON.parse(localStorage.getItem('dashboard:config')).modules.find(x => x.id === id);
+      const c = JSON.parse(localStorage.getItem('dashboard:config'));
+      const m = c.pages.find(p => p.id === c.activePage).modules.find(x => x.id === id);
       return [m.col, m.row, m.cols, m.rows, m.enabled];
     }, id);
     await page.evaluate(() => { document.querySelector('app-todo').__marker = 1; });
@@ -379,6 +382,26 @@ const checks = {
     const early = await page.evaluate(() => document.documentElement.dataset.theme);
     await close();
     assert(early === 'dark', `early theme: ${early}`);
+  },
+
+  async 'pages: add a page, it starts empty, tabs switch, reload keeps the page'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.click('shell-bar [data-action="open-settings"]');
+    await page.fill('shell-bar .page-new-name', 'Work');
+    await page.click('shell-bar [data-action="add-page"]');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#shell .shell-empty');
+    const tabs = await page.$$eval('shell-bar .shell-tab', els => els.map(e => e.textContent + (e.classList.contains('is-current') ? '*' : '')));
+    assert(tabs.join() === 'Home,Work*', `tabs: ${tabs}`);
+    assert(/#page=p_/.test(page.url()), `url: ${page.url()}`);
+
+    await page.reload();
+    await page.waitForSelector('#shell .shell-empty');
+    await page.click('shell-bar .shell-tab:has-text("Home")');
+    await page.waitForSelector('app-todo');
+    assert(/#page=home$/.test(page.url()), `url: ${page.url()}`);
+    await close();
+    assert(errors.length === 0, `page errors: ${errors}`);
   },
 
   async 'server refuses dotfiles and foreign Host headers'() {

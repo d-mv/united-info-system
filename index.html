@@ -54,10 +54,12 @@
     import { setupExpandController } from '/core/expand.js';
     import { setupLayoutEditor } from '/core/layout-editor.js';
     import { setupAppearance } from '/core/appearance.js';
+    import { setupPages } from '/core/pages.js';
     import '/core/shell-bar.js';
     import '/core/palette.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
+      setupPages();
       setupExpandController();
       setupLayoutEditor();
       setupAppearance();

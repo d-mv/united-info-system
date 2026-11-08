@@ -351,6 +351,19 @@ button {
 .swatch__dot--green { background: light-dark(#2e7d4f, #4caf72); }
 .swatch__dot--blue { background: light-dark(#2a5fa8, #5b8fd9); }
 .swatch__dot--graphite { background: light-dark(#1c1b18, #e9e5da); }
+.shell-tab {
+  height: 2.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  border-bottom: 1px solid transparent;
+}
+.shell-tab:hover { color: var(--color-ink); }
+.shell-tab.is-current { color: var(--color-ink); border-bottom-color: var(--color-ink); }
+.page-row .input { flex: 1; min-width: 0; }
+.shell-empty { grid-column: 1 / -1; padding: 4rem 0; text-align: center; }
 .shell-bar__layout.is-active { color: var(--color-accent); }
 
 /* Layout editing: overlays sit on top of their modules in the same grid cells. */

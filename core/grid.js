@@ -56,6 +56,12 @@ export class GridEngine {
     if (typeof document !== 'undefined' && document.body) document.body.classList.remove('modal-open');
 
     const enabledModules = (config.modules || []).filter(m => m.enabled !== false);
+    if (!enabledModules.length) {
+      const empty = document.createElement('p');
+      empty.className = 'shell-empty label';
+      empty.textContent = 'This page is empty. Turn modules on in Settings → Modules.';
+      this.shellElement.appendChild(empty);
+    }
 
     for (const modConfig of enabledModules) {
       const placeholder = this._createSkeleton(modConfig);

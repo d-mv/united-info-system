@@ -50,3 +50,27 @@ test('Settings lists modules and switches them on and off', async () => {
   bar.toggleModule('weather', true);
   assert.strictEqual(bar.configManager.getModules().find(m => m.id === 'weather').enabled, true);
 });
+
+test('page tabs appear with two pages; palette can switch and add pages', async () => {
+  const { ShellBar } = await import('../core/shell-bar.js');
+  const { ConfigManager } = await import('../core/config.js');
+  const { collectCommands, clearCommands } = await import('../core/commands.js');
+  clearCommands();
+  globalThis.history = { replaceState: (a, b, url) => { globalThis.__hash = url; } };
+  const bar = new ShellBar();
+  bar.storage = makeStorage();
+  bar.configManager = new ConfigManager({ storage: bar.storage });
+  bar.connectedCallback();
+  assert.ok(!bar.innerHTML.includes('class="shell-tab'), 'no tabs with one page');
+
+  collectCommands('new page').find(c => c.title === 'New page').run();
+  bar.render();
+  assert.strictEqual((bar.innerHTML.match(/class="shell-tab/g) || []).length, 2);
+  assert.ok(/^#page=p_/.test(globalThis.__hash), 'URL follows the page');
+
+  collectCommands('home').find(c => c.title === 'Go to page: Home').run();
+  assert.strictEqual(bar.configManager.currentPageId(), 'home');
+  assert.strictEqual(globalThis.__hash, '#page=home');
+  bar.disconnectedCallback();
+  delete globalThis.history;
+});
