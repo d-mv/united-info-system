@@ -1,6 +1,6 @@
 import { configManager, DEFAULT_CONFIG } from '../../core/config.js';
 import { storage } from '../../core/storage.js';
-import { escapeHtml } from '../../core/html.js';
+import { escapeHtml, expandButton } from '../../core/html.js';
 
 const DEFAULT_WEATHER = DEFAULT_CONFIG.secrets.weather;
 
@@ -328,7 +328,7 @@ export class WeatherWidget extends HTMLElement {
         <p class="block-header__label">Weather</p>
         <div class="block-header__actions">
           <button id="setup-button" class="action-button" type="button" aria-label="Weather setup">Setup</button>
-          <button class="zoom-button" type="button" aria-label="Expand Weather"><span class="icon icon--zoom" aria-hidden="true"></span></button>
+          ${expandButton('Weather', !!this.classList?.contains('expanded'))}
         </div>
       </div>
       ${cache ? this.renderReadout(cache, query.units) : this.renderState(query.needsKey)}

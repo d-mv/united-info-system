@@ -1,5 +1,5 @@
 import { storage } from '../../core/storage.js';
-import { escapeHtml, safeHref } from '../../core/html.js';
+import { escapeHtml, safeHref, expandButton } from '../../core/html.js';
 
 export const DEFAULT_BOOKMARKS = [
   { id: 'b1', title: 'Refactoring UI notes', url: 'https://refactoringui.com' },
@@ -254,7 +254,7 @@ export class BookmarksApp extends HTMLElement {
         <p class="block-header__label">Bookmarks</p>
         <div class="block-header__actions">
           <button id="add" class="action-button" type="button" aria-label="Add bookmark">+ Add</button>
-          <button class="zoom-button" type="button" aria-label="Expand Bookmarks"><span class="icon icon--zoom" aria-hidden="true"></span></button>
+          ${expandButton('Bookmarks', !!this.classList?.contains('expanded'))}
         </div>
       </div>
       ${listHtml}

@@ -1,5 +1,5 @@
 import { storage } from '../../core/storage.js';
-import { escapeHtml } from '../../core/html.js';
+import { escapeHtml, expandButton } from '../../core/html.js';
 import {
   alarmDue,
   armAlarm,
@@ -209,7 +209,7 @@ export class ClockWidget extends HTMLElement {
       <div class="block-header">
         <p class="block-header__label">Clock</p>
         <div class="block-header__actions">
-          <button class="zoom-button" type="button" aria-label="Expand Clock"><span class="icon icon--zoom" aria-hidden="true"></span></button>
+          ${expandButton('Clock', !!this.classList?.contains('expanded'))}
         </div>
       </div>
       <div class="clock-container" id="clock-time">

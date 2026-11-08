@@ -20,3 +20,12 @@ export function escapeHtml(value) {
 export function safeHref(url) {
   return /^https?:\/\//i.test(String(url || '')) ? escapeHtml(url) : '#';
 }
+
+/**
+ * The expand toggle in a module header. Modules re-render their markup, so it
+ * is drawn from the current state (core/expand.js keeps it in sync on toggle).
+ */
+export function expandButton(name, expanded) {
+  const label = `${expanded ? 'Collapse' : 'Expand'} ${name}`;
+  return `<button class="zoom-button" type="button" data-expand aria-expanded="${expanded ? 'true' : 'false'}" aria-label="${escapeHtml(label)}"><span class="icon icon--zoom" aria-hidden="true"></span></button>`;
+}

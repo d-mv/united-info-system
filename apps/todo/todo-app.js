@@ -1,5 +1,5 @@
 import { storage } from '../../core/storage.js';
-import { escapeHtml } from '../../core/html.js';
+import { escapeHtml, expandButton } from '../../core/html.js';
 
 export const DEFAULT_TODOS = [
   { id: 't1', text: 'Finish grid engine placement logic', done: false, active: true },
@@ -258,7 +258,7 @@ export class TodoApp extends HTMLElement {
       <div class="block-header">
         <p class="block-header__label">Today</p>
         <div class="block-header__actions">
-          <button class="zoom-button" type="button" aria-label="Expand Tasks"><span class="icon icon--zoom" aria-hidden="true"></span></button>
+          ${expandButton('Tasks', !!this.classList?.contains('expanded'))}
         </div>
       </div>
       <div class="todo-compose">

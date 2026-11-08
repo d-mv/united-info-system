@@ -16,7 +16,7 @@
 - **Fast cold open**: critical CSS is inlined, modules load lazily and render into pre-sized skeleton cells. A module that fails to load shows an error in its own cell without breaking the rest.
 - **Config without setup**: on first open the default config (`dashboard:config`) is written to `localStorage`. Nothing is fetched to boot.
 - **Cross-tab sync**: changes in one tab show up in other open tabs via the `storage` event.
-- **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. `Escape` collapses it.
+- **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. Only one module is expanded at a time; the rest of the page is inert while it is, and `Escape` collapses it and returns focus to the button.
 - **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests.
 
 ---
@@ -63,7 +63,6 @@ When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is 
 
 - The grid is not responsive on narrow screens.
 - Units (metric/imperial) can only be changed by editing `dashboard:config`; the setup dialog has no units selector.
-- Expanding a module doesn't move focus into it.
 
 ---
 

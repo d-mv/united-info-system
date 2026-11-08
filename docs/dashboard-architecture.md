@@ -204,51 +204,13 @@ Layout isn't user-editable yet. When `DEFAULT_CONFIG.modules` changes, bump `CON
 
 Showing the button is pure CSS — no `mouseenter` listener needed. Header actions (`.block-header__actions`, which hold the zoom button) are hidden until the module is hovered, has focus inside it, or is expanded; on touch screens (`@media (hover: none)`) they're always visible.
 
-JS in `core/expand.js` (`setupExpandController()`) delegates document click and keydown events for modal toggling:
+JS in `core/expand.js` delegates document click and keydown events. The DOM is the only state: at most one `.module.expanded`, changed only through `setExpanded(moduleEl | null)`:
 
-```js
-// core/expand.js
-export function setupExpandController() {
-  document.addEventListener('click', (e) => {
-    const zoomBtn = e.target.closest('.zoom-button');
-    if (!zoomBtn) return;
-    const moduleEl = zoomBtn.closest('.module');
-    if (!moduleEl) return;
+- Toggles are buttons with `data-expand` (rendered by `expandButton(name, expanded)` from `core/html.js`, so a module re-render keeps `aria-expanded` and the Expand/Collapse label right). Dialog Close buttons share the `.zoom-button` look but don't toggle.
+- Expanding a module collapses any other one, sets `body.modal-open` (scroll lock + scrim) and makes every other module `inert`, so keyboard focus can't reach them. Focus stays on the module's toggle.
+- Collapsing (toggle click or `Escape`) clears `inert` and returns focus to the toggle. Escape does nothing while a `<dialog>` is open, so closing a dialog doesn't also collapse the module behind it.
 
-    const toggle = () => {
-      const isExpanded = moduleEl.classList.contains('expanded');
-      if (isExpanded) {
-        moduleEl.classList.remove('expanded');
-        document.body.classList.remove('modal-open');
-        zoomBtn.setAttribute('aria-label', zoomBtn.getAttribute('aria-label')?.replace('Collapse', 'Expand'));
-      } else {
-        moduleEl.classList.add('expanded');
-        document.body.classList.add('modal-open');
-        zoomBtn.setAttribute('aria-label', zoomBtn.getAttribute('aria-label')?.replace('Expand', 'Collapse'));
-      }
-    };
-
-    if (document.startViewTransition) {
-      document.startViewTransition(toggle);
-    } else {
-      toggle();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      const expandedMod = document.querySelector('.module.expanded');
-      if (expandedMod) {
-        // collapses expanded modal and updates body/aria state
-      }
-    }
-  });
-}
-```
-
-Escape does nothing while a `<dialog>` is open, so closing a dialog doesn't also collapse the module behind it.
-
-`.expanded` switches the module to a fixed, full-viewport position via CSS; `body.modal-open` locks page scroll and adds a scrim. Focus is not moved into the expanded module or returned afterwards, and the button has no `aria-expanded` yet (tracked as debt). `startViewTransition` gives the native morph/zoom feel in Chromium and recent Safari; browsers without support (older Firefox) just snap — acceptable degradation, not worth a JS animation library for.
+`.expanded` switches the module to a fixed, full-viewport position via CSS. `startViewTransition` gives the native morph/zoom feel in Chromium and recent Safari; browsers without support (older Firefox) just snap — acceptable degradation, not worth a JS animation library for.
 
 ---
 
