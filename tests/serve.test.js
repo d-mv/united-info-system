@@ -71,3 +71,40 @@ test('start.sh blocks path traversal attempts', async () => {
     proc.kill('SIGTERM');
   }
 });
+
+function rawRequest(text) {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect(PORT, '127.0.0.1', () => socket.write(text));
+    let data = '';
+    socket.on('data', chunk => data += chunk.toString());
+    socket.on('end', () => resolve(data));
+    socket.on('error', reject);
+  });
+}
+const get = (target, host = `127.0.0.1:${PORT}`) => rawRequest(`GET ${target} HTTP/1.1\r\nHost: ${host}\r\n\r\n`);
+
+test('start.sh does not serve .git or other dotfiles', async () => {
+  const proc = await startServer();
+  try {
+    for (const target of ['/.git/HEAD', '/.gitignore', '/%2egit/HEAD', '/docs/../.git/config']) {
+      assert.match(await get(target), /^HTTP\/1\.1 404 Not Found/, target);
+    }
+    assert.match(await get('/index.html'), /^HTTP\/1\.1 200 OK/);
+  } finally {
+    proc.kill('SIGTERM');
+  }
+});
+
+test('start.sh only answers requests addressed to localhost (DNS rebinding)', async () => {
+  const proc = await startServer();
+  try {
+    assert.match(await get('/index.html', 'evil.example'), /^HTTP\/1\.1 403 Forbidden/);
+    assert.match(await get('/index.html', `evil.example:${PORT}`), /^HTTP\/1\.1 403 Forbidden/);
+    assert.match(await rawRequest('GET /index.html HTTP/1.0\r\n\r\n'), /^HTTP\/1\.1 403 Forbidden/, 'no Host header');
+    for (const host of [`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`, 'localhost']) {
+      assert.match(await get('/index.html', host), /^HTTP\/1\.1 200 OK/, host);
+    }
+  } finally {
+    proc.kill('SIGTERM');
+  }
+});

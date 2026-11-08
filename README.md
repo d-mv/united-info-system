@@ -34,7 +34,7 @@ No `npm install`, no `package.json`, no gems. Needs Ruby (preinstalled on macOS;
 ruby start.sh 8000    # if the file isn't executable
 ```
 
-The server listens on `127.0.0.1` only.
+The server listens on `127.0.0.1` only, answers only requests addressed to `localhost` / `127.0.0.1` / `[::1]` (blocks DNS-rebinding pages), and never serves dotfiles such as `.git`.
 
 ### 2. Open in the browser
 

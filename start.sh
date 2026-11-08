@@ -14,6 +14,13 @@ require 'uri'
 PORT = (ARGV[0] || 8000).to_i
 ROOT = File.expand_path(ARGV[1] || '.')
 
+# Only answer requests addressed to this machine. A web page can point its own
+# domain at 127.0.0.1 (DNS rebinding) and read local files; its Host header
+# still names that domain, so it is refused here.
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]'].flat_map { |h| [h, "#{h}:#{PORT}"] }.freeze
+
+$stdout.sync = true # so the "Serving" lines reach a pipe right away
+
 MIME_TYPES = {
   '.html'  => 'text/html; charset=utf-8',
   '.htm'   => 'text/html; charset=utf-8',
@@ -47,6 +54,9 @@ def resolved_path(request_path)
   clean = URI.decode_www_form_component(clean)
   clean = '/index.html' if clean == '/'
 
+  # never serve dotfiles or dot-directories (.git, .gitignore, ...); this also rejects '..'
+  return nil if clean.split('/').any? { |segment| segment.start_with?('.') }
+
   full = File.expand_path(File.join(ROOT, clean))
 
   # prevent path traversal — resolved path must stay inside ROOT
@@ -73,8 +83,19 @@ def handle_request(socket)
 
   method, path, = request_line.split(' ')
 
-  # drain remaining headers
-  while (line = socket.gets) && line != "\r\n"; end
+  host = nil
+  while (line = socket.gets) && line != "\r\n"
+    name, value = line.split(':', 2)
+    host = value.strip.downcase if value && name.strip.casecmp?('host')
+  end
+
+  unless ALLOWED_HOSTS.include?(host)
+    body = "403 Forbidden\n"
+    send_response(socket, 403, 'Forbidden',
+                  { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' },
+                  method == 'HEAD' ? nil : body)
+    return
+  end
 
   unless %w[GET HEAD].include?(method)
     body = "405 Method Not Allowed\n"
