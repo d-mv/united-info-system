@@ -1,24 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { installBrowserGlobals, makeStorage, writeFromOtherTab } from './helpers/fake-browser.js';
 
-// Mock DOM for Web Component testing
-class MockHTMLElement {
-  constructor() {
-    this.innerHTML = '';
-  }
+installBrowserGlobals();
 
-  connectedCallback() {}
-  disconnectedCallback() {}
-
-  querySelector(selector) {
-    return null;
-  }
+function makeApp(TodoApp, todos, prefs = null) {
+  const app = new TodoApp();
+  const seed = { 'app:todo': todos };
+  if (prefs) seed['app:todo:view'] = prefs;
+  app.storage = makeStorage(seed);
+  return { app, read: () => app.storage.get('app:todo'), readPrefs: () => app.storage.get('app:todo:view') };
 }
-
-globalThis.HTMLElement = MockHTMLElement;
-globalThis.customElements = {
-  define: () => {}
-};
 
 test('TodoApp renders task list and toggles completion status', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
@@ -27,33 +19,17 @@ test('TodoApp renders task list and toggles completion status', async () => {
   assert.strictEqual(TodoApp.manifest.id, 'todo');
   assert.strictEqual(TodoApp.manifest.type, 'app');
 
-  const app = new TodoApp();
-  app.storage = {
-    get: () => [
-      { id: 't1', text: 'Test todo item', done: false }
-    ],
-    set: (key, val) => { app.savedTodos = val; },
-    subscribe: () => () => {}
-  };
+  const { app, read } = makeApp(TodoApp, [
+    { id: 't1', text: 'Test todo item', done: false }
+  ]);
 
   app.connectedCallback();
   assert.ok(app.innerHTML.includes('Today') || app.innerHTML.includes('Todo'));
   assert.ok(app.innerHTML.includes('Test todo item'));
 
   app.toggleTodo('t1');
-  assert.strictEqual(app.savedTodos[0].done, true);
+  assert.strictEqual(read()[0].done, true);
 });
-
-function makeApp(TodoApp, todos) {
-  const app = new TodoApp();
-  let stored = todos;
-  app.storage = {
-    get: () => stored,
-    set: (key, val) => { stored = val; },
-    subscribe: () => () => {}
-  };
-  return { app, read: () => stored };
-}
 
 test('TodoApp lets several tasks be in progress and toggles each on its own', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
@@ -98,20 +74,9 @@ test('TodoApp renders an in-progress toggle with pressed state for open tasks on
   assert.ok(app.innerHTML.includes('aria-pressed="false"'));
 });
 
-function makeAppWithPrefs(TodoApp, todos, prefs = null) {
-  const app = new TodoApp();
-  const store = { 'app:todo': todos, 'app:todo:view': prefs };
-  app.storage = {
-    get: (key, fallback = null) => (store[key] ?? fallback),
-    set: (key, val) => { store[key] = val; },
-    subscribe: () => () => {}
-  };
-  return { app, store };
-}
-
 test('TodoApp hides completed tasks by default and shows a count toggle', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
-  const { app } = makeAppWithPrefs(TodoApp, [
+  const { app } = makeApp(TodoApp, [
     { id: 'a', text: 'Open task', done: false },
     { id: 'b', text: 'Finished one', done: true },
     { id: 'c', text: 'Finished two', done: true },
@@ -125,25 +90,39 @@ test('TodoApp hides completed tasks by default and shows a count toggle', async 
 
 test('TodoApp show-completed toggle reveals done tasks and is remembered', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
-  const { app, store } = makeAppWithPrefs(TodoApp, [
+  const { app, readPrefs } = makeApp(TodoApp, [
     { id: 'a', text: 'Open task', done: false },
     { id: 'b', text: 'Finished one', done: true },
   ]);
   app.connectedCallback();
   app.toggleShowCompleted();
-  assert.strictEqual(store['app:todo:view'].showCompleted, true, 'preference saved');
+  assert.strictEqual(readPrefs().showCompleted, true, 'preference saved');
   assert.ok(app.innerHTML.includes('Finished one'), 'done tasks now visible');
   assert.ok(app.innerHTML.includes('aria-pressed="true"'));
 });
 
 test('TodoApp has no completed toggle when nothing is done, and says so when all are done', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
-  const none = makeAppWithPrefs(TodoApp, [{ id: 'a', text: 'Open task', done: false }]);
+  const none = makeApp(TodoApp, [{ id: 'a', text: 'Open task', done: false }]);
   none.app.connectedCallback();
   assert.ok(!none.app.innerHTML.includes('data-action="toggle-completed"'));
 
-  const all = makeAppWithPrefs(TodoApp, [{ id: 'b', text: 'Finished one', done: true }]);
+  const all = makeApp(TodoApp, [{ id: 'b', text: 'Finished one', done: true }]);
   all.app.connectedCallback();
   assert.ok(all.app.innerHTML.includes('All done'), 'hidden-everything state is explained');
   assert.ok(all.app.innerHTML.includes('data-action="toggle-completed"'));
+});
+
+test('TodoApp re-renders when tasks change, including from another tab', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { app } = makeApp(TodoApp, [{ id: 'a', text: 'Open task', done: false }]);
+  app.connectedCallback();
+
+  app.addTodo('Written here');
+  assert.ok(app.innerHTML.includes('Written here'), 'own write re-renders through the subscription');
+
+  writeFromOtherTab('app:todo', [{ id: 'z', text: 'Written elsewhere', done: false }]);
+  assert.ok(app.innerHTML.includes('Written elsewhere'), 'cross-tab write re-renders');
+  assert.ok(!app.innerHTML.includes('Open task'));
+  app.disconnectedCallback();
 });

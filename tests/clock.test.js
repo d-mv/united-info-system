@@ -1,29 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
-// Custom Element Mock for Node testing
-class MockHTMLElement {
-  constructor() {
-    this.innerHTML = '';
-    this.textContent = '';
-    this._listeners = new Map();
-  }
-
-  connectedCallback() {}
-  disconnectedCallback() {}
-
-  querySelector(selector) {
-    if (this.innerHTML.includes('id="clock-text"')) {
-      return { textContent: '' };
-    }
-    return null;
-  }
-}
-
-globalThis.HTMLElement = MockHTMLElement;
-globalThis.customElements = {
-  define: () => {}
-};
+installBrowserGlobals();
 
 test('ClockWidget defines static manifest and updates time', async () => {
   const { ClockWidget } = await import('../widgets/clock/clock-widget.js');
@@ -33,7 +12,8 @@ test('ClockWidget defines static manifest and updates time', async () => {
   assert.strictEqual(ClockWidget.manifest.type, 'widget');
 
   const clock = new ClockWidget();
-  clock.storage = { get: (key, fallback) => fallback, set: () => {}, subscribe: () => () => {} };
+  clock.storage = makeStorage();
+  clock.querySelector = (selector) => (clock.innerHTML.includes('id="clock-text"') ? { textContent: '' } : null);
   clock.connectedCallback();
   assert.ok(clock.innerHTML.includes('Clock'));
   assert.ok(clock.innerHTML.includes('live-dot'));

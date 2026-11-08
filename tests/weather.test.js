@@ -1,27 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
+import { ConfigManager } from '../core/config.js';
 
-// Mock DOM for Web Component testing
-class MockHTMLElement {
-  constructor() {
-    this.innerHTML = '';
-    this._listeners = new Map();
-  }
+installBrowserGlobals();
 
-  connectedCallback() {}
-  disconnectedCallback() {}
-
-  querySelector(selector) {
-    if (selector === '.setup-button') return { addEventListener: (ev, fn) => this._listeners.set('setup-click', fn) };
-    if (selector === '#save-secrets') return { addEventListener: (ev, fn) => this._listeners.set('save-click', fn) };
-    return null;
-  }
+// Real storage + real ConfigManager; `weather` secrets seeded into the stored config.
+function makeWidget(WeatherWidget, weatherSecrets, cache = null) {
+  const widget = new WeatherWidget();
+  widget.storage = makeStorage(cache ? { 'weather:cache': cache } : {});
+  widget.configManager = new ConfigManager({ storage: widget.storage });
+  widget.configManager.setSecret('weather', weatherSecrets);
+  return { widget, readCache: () => widget.storage.get('weather:cache') };
 }
-
-globalThis.HTMLElement = MockHTMLElement;
-globalThis.customElements = {
-  define: () => {}
-};
 
 test('WeatherWidget manifests setup dialog and handles secret configuration', async () => {
   const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
@@ -29,17 +20,27 @@ test('WeatherWidget manifests setup dialog and handles secret configuration', as
   assert.ok(WeatherWidget.manifest);
   assert.strictEqual(WeatherWidget.manifest.id, 'weather');
 
-  const widget = new WeatherWidget();
-  widget.configManager = {
-    getSecret: () => ({ provider: 'openmeteo', apiKey: '', city: 'London', units: 'metric' }),
-    setSecret: (id, secrets) => { widget.savedSecrets = secrets; }
-  };
-  widget.storage = {
-    get: () => ({ temp: 15, condition: 'Sunny', city: 'London', provider: 'openmeteo', fetchedAt: Date.now() }),
-    set: () => {}
+  const { widget } = makeWidget(
+    WeatherWidget,
+    { provider: 'openmeteo', apiKey: '', city: 'London', units: 'metric' },
+    { temp: 15, condition: 'Sunny', city: 'London', provider: 'openmeteo', fetchedAt: Date.now() }
+  );
+  const listeners = new Map();
+  widget.querySelector = (selector) => {
+    if (selector === '.setup-button') return { addEventListener: (ev, fn) => listeners.set('setup-click', fn) };
+    if (selector === '#save-secrets') return { addEventListener: (ev, fn) => listeners.set('save-click', fn) };
+    return null;
   };
 
-  widget.connectedCallback();
+  // No network in tests: the refresh started by connectedCallback fails fast.
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('offline'); };
+  try {
+    widget.connectedCallback();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
   assert.ok(widget.innerHTML.includes('Setup') || widget.innerHTML.includes('Weather'));
 
   // Test setup dialog toggle
@@ -52,15 +53,7 @@ test('WeatherWidget manifests setup dialog and handles secret configuration', as
 test('WeatherWidget fetches full current conditions and forecast from Open-Meteo API', async () => {
   const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
 
-  const widget = new WeatherWidget();
-  let storedCache = null;
-  widget.configManager = {
-    getSecret: () => ({ provider: 'openmeteo', city: 'London', units: 'metric' })
-  };
-  widget.storage = {
-    get: () => storedCache,
-    set: (key, val) => { storedCache = val; }
-  };
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'London', units: 'metric' });
 
   // Mock global fetch for Open-Meteo geocoding and weather
   const originalFetch = globalThis.fetch;
@@ -116,6 +109,7 @@ test('WeatherWidget fetches full current conditions and forecast from Open-Meteo
 
   try {
     await widget.fetchWeatherStaleWhileRevalidate();
+    const storedCache = readCache();
     assert.ok(storedCache);
     assert.strictEqual(storedCache.temp, 18);
     assert.strictEqual(storedCache.condition, 'Clear');
@@ -148,15 +142,7 @@ test('WeatherWidget fetches full current conditions and forecast from Open-Meteo
 test('WeatherWidget fetches full current conditions and forecast from OpenWeatherMap API', async () => {
   const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
 
-  const widget = new WeatherWidget();
-  let storedCache = null;
-  widget.configManager = {
-    getSecret: () => ({ provider: 'openweathermap', apiKey: 'valid_key', city: 'Paris', units: 'metric' })
-  };
-  widget.storage = {
-    get: () => storedCache,
-    set: (key, val) => { storedCache = val; }
-  };
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openweathermap', apiKey: 'valid_key', city: 'Paris', units: 'metric' });
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -192,6 +178,7 @@ test('WeatherWidget fetches full current conditions and forecast from OpenWeathe
 
   try {
     await widget.fetchWeatherStaleWhileRevalidate();
+    const storedCache = readCache();
     assert.ok(storedCache);
     assert.strictEqual(storedCache.temp, 22);
     assert.strictEqual(storedCache.condition, 'Clouds');
