@@ -450,7 +450,8 @@ export class ClockWidget extends HTMLElement {
       return;
     }
 
-    if (timerFinished(state.timer, now)) {
+    // One thing rings at a time; a finished timer waits until the alarm is dismissed.
+    if (!state.ringing && timerFinished(state.timer, now)) {
       const ringing = { kind: 'timer', label: 'Timer done', since: now };
       this.setState({ timer: resetTimer(state.timer.durationMs), ringing });
       showRingNotification(ringing);
