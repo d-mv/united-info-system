@@ -11,12 +11,14 @@
 - **Cloneable and runnable with zero setup** beyond a static server command.
 - **Modular.** Apps and widgets are independent modules that can be added, removed, or broken without affecting the rest of the shell.
 - **Textual-first.** Minimal graphics, no borders between modules, seamless grid — visual weight comes from typography and spacing, not chrome.
-- **Resilient offline / on protected networks.** Only the weather widget and the Jira app (once set up) touch the network; everything else must work with zero connectivity.
+- **Resilient offline / on protected networks.** Only weather, currency rates, bookmark favicons and Jira (once set up) touch the network, each with a local cache or a quiet fallback; everything else works with zero connectivity.
+- **Frontend only.** No backend or proxy: `start.sh` only serves files. Anything external must be reachable from the browser directly (CORS).
 
 **Terminology:**
 - **Shell** — the main block: the grid container that holds and positions everything.
-- **App** — a functional module with real state and interaction (todo, bookmarks).
-- **Widget** — a display-first module with minimal or no interaction (clock, weather).
+- **App** — a functional module with real state and interaction (clock, todo, bookmarks, notes, calendar, jira, currency).
+- **Widget** — a display-first module with minimal or no interaction (weather).
+- **Page** — a named set of modules with their own layout; data is shared across pages.
 - **Module** — umbrella term for either, used when the distinction doesn't matter.
 
 ---
@@ -26,16 +28,27 @@
 ```
 /index.html                 # the shell — grid container, inline critical CSS
 /core/
-  grid.js                   # layout engine — reads config, places modules into the shell
-  registry.js               # module id -> { type, load } map
+  grid.js                   # layout engine — reads config, places modules (grown into gaps) into the shell
+  layout.js                 # pure placement rules: place, fillGaps, moveWithPush, firstFit, normalizeModules
+  layout-editor.js          # Edit layout overlays + drag-a-header-to-move
+  registry.js               # module id -> { type, name, load } map
   storage.js                # thin localStorage wrapper, namespaced keys, change subscriptions
-  config.js                 # initializes/migrates the auto-generated config in localStorage
+  config.js                 # creates/migrates/normalizes the config; pages; per-tab current page
+  pages.js                  # #page=<id> per tab
+  shell-bar.js              # <shell-bar>: page tabs, Edit layout, ⌘K, Settings dialog
+  commands.js               # command registry modules add to while mounted
+  palette.js                # <command-palette> (⌘K / Ctrl+K / "/")
+  appearance.js             # theme (auto/light/dark) and accent -> data-theme / data-accent
+  backup.js                 # JSON export / import of every dashboard: key
   expand.js                 # zoom-to-full-page toggle + Escape
   html.js                   # escapeHtml / safeHref for values interpolated into markup
-  theme.css                 # design tokens + shared primitives (§11)
+  theme.css                 # design tokens (light-dark()) + shared primitives (§11)
 /apps/
-  todo/todo-app.js          # defines <app-todo>
-  bookmarks/bookmarks-app.js # defines <app-bookmarks>
+  todo/                     # todo-app.js (<app-todo>), todo-logic.js (order, due dates)
+  bookmarks/                # bookmarks-app.js (<app-bookmarks>), bookmarks-logic.js (import, groups)
+  notes/                    # notes-app.js (<app-notes>), notes-logic.js (allowlist HTML sanitizer)
+  jira/                     # jira-app.js (<app-jira>), jira-logic.js (gateway URL, auth, errors)
+  currency/                 # currency-app.js (<app-currency>), currency-logic.js (parsing, cross rates)
   clock/
     clock-app.js            # defines <app-clock>
     clock-logic.js          # pure alarm/timer rules (no DOM)
@@ -50,7 +63,7 @@
     font/                   # Weather Icons webfont (LICENSE.txt alongside)
 /fonts/                     # self-hosted Space Grotesk + IBM Plex Mono (OFL)
 /assets/                    # SVG icons used as CSS masks
-/tests/                     # node --test suites (mock DOM)
+/tests/                     # node --test suites (mock DOM); tests/browser/smoke.mjs real-browser checks
 /docs/                      # this doc, visual reference, drafts for future modules
 /start.sh                   # zero-dependency Ruby static server executable
 /README.md                  # clone + run instructions
@@ -112,26 +125,27 @@ Default placements in the 12-column layout (`DEFAULT_CONFIG.modules` in `core/co
 
 ## 5. Grid System
 
-This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs variable-height items; here every module has a declared, fixed span). Worth being precise about since the CSS APIs differ.
+CSS Grid with unit-based placement that fills the window. Each module has a saved placement (`col`, `row`, `cols`, `rows`); what is drawn is that placement grown into empty neighbouring cells.
 
 ```css
 #shell {
   display: grid;
-  grid-template-columns: repeat(var(--grid-cols), var(--cell-size));
+  grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));          /* share the width */
+  grid-template-rows: repeat(var(--grid-rows, 4), minmax(var(--cell-size), 1fr)); /* share the height */
   grid-auto-rows: var(--cell-size);
-  gap: 0; /* seamless — no visible borders between modules */
-}
-
-[data-module] {
-  grid-column: var(--col) / span var(--col-span);
-  grid-row: var(--row) / span var(--row-span);
-  padding: var(--module-padding); /* the only separation between modules */
+  gap: var(--grid-gap);
 }
 ```
 
 `core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. Modules are drawn with `fillGaps()` (core/layout.js): each grows into empty neighbouring cells, so the saved placement is a reference, not the drawn size (Edit layout draws the saved cells). Columns are `1fr`, rows `minmax(--cell-size, 1fr)` with `--grid-rows` set to the rows in use. Dragging a header label moves a module with `moveWithPush()`. It remounts modules only when the grid settings or the set of shown modules change; a module that is only moved or resized keeps its element (`updatePlacement`). Widget settings live in the same key (`secrets`), so widgets that have settings subscribe to the config themselves (the weather widget refetches when its provider, city or key changes).
 
-`grid.js` sets `--grid-cols`, `--cell-size` and `--module-padding` on `#shell` from `config.grid` with `style.setProperty()` (defaults: 12 columns, 100px cells, 16px padding, matching `core/theme.css`). Config v3 resets grid values saved by older versions, which were never applied. Columns are `minmax(0, --cell-size)`, so the grid shrinks with narrower windows; below 900px modules stack in one column in config order (`!important` overrides the inline placement). The clock time scales with its module via a container query.
+`grid.js` sets `--grid-cols`, `--cell-size` (the minimum row height), `--module-padding` and `--grid-rows` on `#shell` with `style.setProperty()` (defaults: 12 columns, 100px, 16px). Below 900px modules stack in one column in config order (`!important` overrides the inline placement), and dragging/editing is off. The clock time scales with its module via a container query.
+
+**Placement rules** (`core/layout.js`, pure and tested):
+- `fillGaps(modules, cols)`: every shown module grows right, then down, then left, then up into empty cells (one direction at a time for all modules, so a module beside a gap fills it before one above grows into it). Never overlaps, never shrinks.
+- `moveWithPush(modules, id, target, cols)`: used when a module is dragged by its header label. The module lands exactly at the drop cell, modules it overlaps move down, then every other module rises as far as it can.
+- `place()` / `collides()` / `fits()`: strict moves for Edit layout (refused if they overlap or leave the grid). Edit layout draws saved cells (the grid listens to the `uis:layout-mode` event).
+- `setEnabled()` turns a module on at the first free spot that fits (`firstFit`, top-left first).
 
 ---
 
@@ -140,10 +154,9 @@ This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs
 ```js
 // core/registry.js
 export const registry = {
-  clock:     { type: 'app',    load: () => import('/apps/clock/clock-app.js') },
-  weather:   { type: 'widget', load: () => import('/widgets/weather/weather-widget.js') },
-  todo:      { type: 'app',    load: () => import('/apps/todo/todo-app.js') },
-  bookmarks: { type: 'app',    load: () => import('/apps/bookmarks/bookmarks-app.js') },
+  clock:   { type: 'app',    name: 'Clock',   load: () => import('../apps/clock/clock-app.js') },
+  weather: { type: 'widget', name: 'Weather', load: () => import('../widgets/weather/weather-widget.js') },
+  // … bookmarks, todo, notes, calendar, jira, currency
 };
 ```
 
@@ -157,7 +170,7 @@ export const registry = {
 - **Skeleton first.** Grid cells render immediately from cached layout (localStorage), sized and positioned correctly, before any module JS executes — this avoids layout shift entirely rather than fixing it after the fact.
 - **Clock renders synchronously** (no network, trivial cost) — it should be the first thing visible.
 - **Todo/bookmarks (apps) hydrate from localStorage** — synchronous read, near-instant.
-- **Weather is the only async, network-bound widget** — never blocks paint; see §9.
+- **Network modules (weather, currency, jira) are async** — they render their cached result first and never block paint; see §10.
 
 **Rough budget** (tune once you have a real build to measure against):
 - First paint: sub-100ms on warm cache.
@@ -171,7 +184,7 @@ export const registry = {
 `localStorage`, namespaced to avoid collisions:
 
 ```
-dashboard:config            # auto-generated config: version, grid, modules (enabled + placement), secrets
+dashboard:config            # version, grid, pages [{id, name, modules}], activePage, appearance, secrets
 dashboard:clock             # alarm, countdown timer, ringing state
 dashboard:weather:cache     # { query, reading }: last-known reading and the settings it was fetched for
 dashboard:app:todo          # todo items: { id, text, done, active }
@@ -186,7 +199,11 @@ dashboard:app:calendar:fired # { 'eventId@YYYY-MM-DD': { at, title, when, dismis
 **Config Strategy:**
 No external `config.local.json` is fetched over HTTP. When the app boots, `core/config.js` checks `dashboard:config` in `localStorage`. If missing (e.g. first cold-open), `core/config.js` generates the default configuration, persists it to `localStorage`, and returns it synchronously. This guarantees zero network latency during startup, eliminates 404 setup errors, and establishes a single portable data structure ready for future sync integration.
 
-Layout isn't user-editable yet. When `DEFAULT_CONFIG.modules` changes, bump `CONFIG_VERSION`; `_migrate()` then resets saved configs to the new layout while keeping enabled flags, grid settings and secrets.
+The full list of keys, including notes, jira, currency and calendar, is in the README's Data Storage table.
+
+**Pages and the current page:** `ConfigManager.get()` returns the stored config plus `modules` = the current page's modules, and `update({ modules })` writes them back into that page, so the grid and layout editor only ever deal with "this page". Each tab pins its page on first read (also kept in `#page=<id>`); `activePage` is only where new tabs open.
+
+**Versions (CONFIG_VERSION 5):** before v3 the layout came from the defaults; v4 made it user-editable (placement kept); v5 moved `modules` into `pages[]` (the old layout becomes "Home"). Adding a module needs no version bump: `normalizeModules()` appends any `DEFAULT_CONFIG.modules` entry a page lacks (switched on in the first page, off in others) and drops unknown ids.
 
 ---
 
@@ -228,7 +245,7 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 
 ## 10b. Todo App
 
-- Items are `{ id, text, done, active }`. `active` means "in progress"; any number of tasks can be active, and it's cleared when a task is completed.
+- Items are `{ id, text, done, active, due }`, stored in display order (drag or grip + ↑/↓ reorders; `moveBefore`/`moveStep` in todo-logic.js). `active` means "in progress"; any number of tasks can be active, and it's cleared when a task is completed. `due` is an optional `YYYY-MM-DD` shown as Today / Tomorrow / a date, overdue in the accent colour.
 - Completed tasks are hidden by default. The "Completed · N" footer row toggles `dashboard:app:todo:view.showCompleted`.
 
 ## 11. Visual System — Light/Dark Theme
@@ -244,7 +261,7 @@ Tokens live in `core/theme.css`. The visual language is **Braun / Dieter Rams**,
 - **Dialogs:** native `<dialog>` opened with `showModal()`, which gives focus trapping, Escape handling and a `::backdrop` scrim without custom JS.
 - **User text:** module markup is built with template strings, so every user or API value goes through `escapeHtml` / `safeHref` from `core/html.js`.
 
-**Switching mechanism:** `prefers-color-scheme` only, decided for v1 — no manual toggle, no `data-theme` attribute, no `localStorage` read for theme. The OS setting is the single source of truth, which also means no anti-flash script is needed in `<head>` (there's nothing to flash — the media query resolves before first paint regardless). Simpler for now; a manual override can be layered on later without disturbing these tokens if it turns out to be wanted.
+**Switching mechanism:** colour tokens are `light-dark(light, dark)` values, resolved by `color-scheme`. By default that follows the OS; Settings → Appearance can force Light or Dark (`data-theme` on `<html>` sets `color-scheme`) and pick an accent (`data-accent`: red, orange, green, blue, graphite). `config.appearance` holds the choice; an inline script in `<head>` applies it before first paint (no flash), and `core/appearance.js` keeps it in sync, including other tabs. Never add `prefers-color-scheme` media queries in modules; use the tokens.
 
 ---
 
@@ -262,8 +279,10 @@ Decided: no launchd agent, no auto-start. The static server is started manually 
 1. Decide the type: **app** (functional — real state, persistence, or interaction) or **widget** (display-first, minimal/no interaction).
 2. Create `/apps/<id>/<id>-app.js` or `/widgets/<id>/<id>-widget.js`, define the custom element (tag `app-<id>` or `widget-<id>`); render the header toggle with `expandButton()` from `core/html.js`.
 3. Register it in `core/registry.js` with its `type` and `load` path.
-4. Add `<id>` with its placement to `DEFAULT_CONFIG.modules` in `core/config.js` and bump `CONFIG_VERSION` so existing saved configs pick it up.
+4. Add `<id>` with its placement to `DEFAULT_CONFIG.modules` in `core/config.js` (no version bump; existing configs get it appended).
 5. If it persists state, add a namespaced key via `core/storage.js` — don't touch `localStorage` directly.
 6. If it's network-bound, follow the stale-while-revalidate pattern from §10 — no module should block paint.
 7. Escape every user or API value interpolated into markup with `core/html.js`.
-8. Add a `tests/<id>.test.js` suite (`node --test`).
+8. Add a `tests/<id>.test.js` suite (`node --test`), pure rules in `<id>-logic.js` with their own tests, and a check in `tests/browser/smoke.mjs` for browser-only behaviour.
+9. Register palette commands with `registerCommands(id, query => [...])` in `connectedCallback` and unregister in `disconnectedCallback`.
+10. Update the README (Modules bullet, Data Storage rows).

@@ -7,32 +7,58 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 
-const PORT = 8899;
+// Each server gets a free port (a fixed one races with the previous test's
+// server still shutting down), and the tests read PORT after startServer().
+let PORT = 0;
 const SERVER_PATH = path.resolve('start.sh');
+const READY_TIMEOUT_MS = 10000; // a cold Ruby start on a busy machine can take a few seconds
 
-function startServer(root) {
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+/** Start start.sh and resolve once it says it is listening; reject if it exits or never does. */
+async function startServer(root) {
+  PORT = await freePort();
   return new Promise((resolve, reject) => {
     const serverProc = spawn(SERVER_PATH, root ? [String(PORT), root] : [String(PORT)], {
       stdio: ['ignore', 'pipe', 'pipe']
     });
-
     let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      serverProc.kill('SIGKILL');
+      reject(new Error(`start.sh did not start within ${READY_TIMEOUT_MS}ms. stderr: ${stderr}`));
+    }, READY_TIMEOUT_MS);
     serverProc.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
       if (stdout.includes(`http://localhost:${PORT}`)) {
+        clearTimeout(timer);
         resolve(serverProc);
       }
     });
-
-    serverProc.stderr.on('data', (err) => {
-      console.error('Server err:', err.toString());
+    serverProc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    serverProc.on('error', (err) => { clearTimeout(timer); reject(err); });
+    serverProc.on('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`start.sh exited (${code}) before it was ready. stderr: ${stderr}`));
     });
+  });
+}
 
-    serverProc.on('error', reject);
-
-    setTimeout(() => {
-      resolve(serverProc);
-    }, 1500);
+/** Stop the server and wait until it has exited. */
+function stopServer(proc) {
+  if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    proc.once('exit', () => resolve());
+    proc.kill('SIGTERM');
   });
 }
 
@@ -51,7 +77,7 @@ test('start.sh serves static files with correct MIME types and headers', async (
     assert.strictEqual(res.response.headers['content-type'], 'text/css; charset=utf-8');
     assert.strictEqual(res.response.headers['connection'], 'close');
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
   }
 });
 
@@ -70,7 +96,7 @@ test('start.sh blocks path traversal attempts', async () => {
 
     assert.match(res, /^HTTP\/1\.1 404 Not Found/);
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
   }
 });
 
@@ -93,7 +119,7 @@ test('start.sh does not serve .git or other dotfiles', async () => {
     }
     assert.match(await get('/index.html'), /^HTTP\/1\.1 200 OK/);
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
   }
 });
 
@@ -107,7 +133,7 @@ test('start.sh only answers requests addressed to localhost (DNS rebinding)', as
       assert.match(await get('/index.html', host), /^HTTP\/1\.1 200 OK/, host);
     }
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
   }
 });
 
@@ -121,7 +147,7 @@ test('start.sh keeps + in paths literal (only form data uses + for space)', asyn
     assert.match(await get('/a%2Bb.txt'), /\r\n\r\nplus$/);
     assert.match(await get('/a%20b.txt'), /\r\n\r\nspace$/);
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -144,7 +170,7 @@ test('start.sh sends no body for HEAD, including on errors', async () => {
     assert.match(post, /^HTTP\/1\.1 405 /);
     assert.strictEqual(bodyOf(post), '405 Method Not Allowed\n');
   } finally {
-    proc.kill('SIGTERM');
+    await stopServer(proc);
     fs.chmodSync(path.join(root, 'locked.txt'), 0o600);
     fs.rmSync(root, { recursive: true, force: true });
   }

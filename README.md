@@ -82,14 +82,16 @@ Since config v4 the layout is yours (v5 moved it into pages; an older layout bec
 node --test tests/*.test.js
 ```
 
-Tests run in Node against a mock DOM, so they don't catch every browser-only bug. For that there is a real-browser smoke run (layout, CSS variables, expand/focus, server hardening):
+Tests run in Node against a mock DOM (`tests/helpers/fake-browser.js`, real `StorageEngine`, `fetch` always stubbed), so they never touch the network and don't depend on the machine's time zone. The `start.sh` tests start the server on a free port and wait for it to be ready, so they're safe on a busy machine.
+
+They don't catch every browser-only bug. For that there is a real-browser smoke run with one check per module and per shell feature (layout and filling, drag to move, layout editor, palette, pages, theme, backup, expand/focus, server hardening). It stubs every external request, so it needs no network:
 
 ```bash
 # one-time: Playwright lives outside the repo (no package.json here)
 npm install --prefix ~/.cache/uis-playwright playwright-core@1.64.1
 npx --prefix ~/.cache/uis-playwright playwright-core install chromium
 
-node tests/browser/smoke.mjs   # starts start.sh on port 8790, exits non-zero on failure
+node tests/browser/smoke.mjs   # starts start.sh on port 8790 (UIS_SMOKE_PORT to change), exits non-zero on failure
 ```
 
 ---
