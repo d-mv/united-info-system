@@ -11,7 +11,7 @@
 - **Cloneable and runnable with zero setup** beyond a static server command.
 - **Modular.** Apps and widgets are independent modules that can be added, removed, or broken without affecting the rest of the shell.
 - **Textual-first.** Minimal graphics, no borders between modules, seamless grid — visual weight comes from typography and spacing, not chrome.
-- **Resilient offline / on protected networks.** Only the weather widget touches the network; everything else must work with zero connectivity.
+- **Resilient offline / on protected networks.** Only the weather widget and the Jira app (once set up) touch the network; everything else must work with zero connectivity.
 
 **Terminology:**
 - **Shell** — the main block: the grid container that holds and positions everything.
@@ -101,6 +101,7 @@ Default placements in the 12-column layout (`DEFAULT_CONFIG.modules` in `core/co
 - `weather`: `2×2` (`col: 1, row: 3`)
 - `bookmarks`: `4×4` (`col: 3, row: 1`)
 - `todo`: `6×4` (`col: 7, row: 1`)
+- `jira`: `4×4` (`col: 9, row: 5`)
 
 ---
 
