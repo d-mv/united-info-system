@@ -29,3 +29,11 @@ test('core/theme.css exists and defines theme tokens and typography rules', () =
   assert.ok(content.includes('font-family: var(--font-sans)'), 'Must use font-sans for base styling');
   assert.ok(content.includes('widget-clock') && content.includes('font-family: var(--font-mono)'), 'Clock must use font-mono');
 });
+
+test('core/theme.css lets the grid shrink and stacks modules on narrow screens', () => {
+  const content = fs.readFileSync(path.resolve('core/theme.css'), 'utf-8');
+  assert.ok(content.includes('repeat(var(--grid-cols), minmax(0, var(--cell-size)))'), 'columns shrink below the cell size');
+  const narrow = content.slice(content.indexOf('@media (max-width: 900px)'));
+  assert.ok(content.includes('@media (max-width: 900px)'), 'has a narrow-screen layout');
+  assert.ok(/grid-column: 1 \/ -1 !important/.test(narrow), 'modules span the single column (overrides inline placement)');
+});

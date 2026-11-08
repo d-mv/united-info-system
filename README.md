@@ -59,12 +59,6 @@ When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is 
 
 ---
 
-## Known Limitations
-
-- The grid is not responsive on narrow screens.
-
----
-
 ## Testing
 
 ```bash
