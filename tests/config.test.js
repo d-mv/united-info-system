@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { ConfigManager, CONFIG_VERSION } from '../core/config.js';
+import { ConfigManager, CONFIG_VERSION, DEFAULT_CONFIG } from '../core/config.js';
 import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
@@ -14,7 +14,7 @@ test('ConfigManager generates default config on cold boot', () => {
   assert.strictEqual(config.grid.columns, 12);
   assert.strictEqual(config.grid.cellSize, 100);
   assert.ok(Array.isArray(config.modules));
-  assert.strictEqual(config.modules.length, 5);
+  assert.strictEqual(config.modules.length, DEFAULT_CONFIG.modules.length);
 
   // Assert stored in localStorage
   const rawStored = localStorage.getItem('dashboard:config');

@@ -87,7 +87,7 @@ const checks = {
     const { page, errors, close } = await freshPage(browser);
     const mounted = await page.evaluate(() => [...document.querySelectorAll('#shell > .module')].map(m => m.tagName.toLowerCase()));
     await close();
-    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-jira', `mounted: ${mounted}`);
+    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-notes,app-jira', `mounted: ${mounted}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
@@ -118,11 +118,12 @@ const checks = {
     await page.click('app-bookmarks [data-expand]', { force: true });
     await page.waitForTimeout(400);
     const open = await page.evaluate(() => ({
+      others: document.querySelectorAll('.module').length - 1,
       expanded: [...document.querySelectorAll('.module.expanded')].map(m => m.dataset.module),
       inert: [...document.querySelectorAll('.module')].filter(m => m.inert).length,
       aria: document.querySelector('app-bookmarks [data-expand]').getAttribute('aria-expanded'),
     }));
-    assert(open.expanded.join() === 'bookmarks' && open.inert === 4 && open.aria === 'true', JSON.stringify(open));
+    assert(open.expanded.join() === 'bookmarks' && open.inert === open.others && open.aria === 'true', JSON.stringify(open));
     for (let i = 0; i < 20; i++) {
       await page.keyboard.press('Tab');
       const where = await page.evaluate(() => document.activeElement.closest('.module')?.dataset.module ?? null);
@@ -323,6 +324,11 @@ const checks = {
     await page.click('shell-bar [data-action="toggle-layout"]');
     await page.waitForSelector('.layout-overlay');
     assert(await page.evaluate(() => document.querySelector('app-todo').inert), 'modules are inert while editing');
+    // Notes sits below weather (col 1, row 5); hide it so weather has room to move down.
+    await page.click('.layout-overlay[data-overlay-for="notes"] [data-layout="hide"]');
+    // Hiding remounts the grid; mark todo again once it has.
+    await page.waitForFunction(() => document.querySelector('app-todo') && !document.querySelector('app-notes'));
+    await page.evaluate(() => { document.querySelector('app-todo').__marker = 1; });
 
     // Weather (2x2 at 1,3): drag one row down -> row 4.
     const weather = page.locator('.layout-overlay[data-overlay-for="weather"]');
@@ -443,6 +449,98 @@ const checks = {
     const foot = await page.textContent('app-jira .jira-foot');
     await close();
     assert(/Update failed/.test(foot) && /API token rejected/.test(foot), `footer: ${foot}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
+  async 'notes: rich text, autosave, sanitized paste, links, cross-tab keeps the editor'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('dashboard:app:notes') || '[]'));
+    await page.click('app-notes [data-action="new"]', { force: true });
+    assert(await page.evaluate(() => document.activeElement.matches('app-notes .notes-editor')), 'editor focused');
+    await page.keyboard.type('Shopping list');
+    await page.click('app-notes .notes-tool--heading');
+    assert(await page.getAttribute('app-notes .notes-tool--heading', 'aria-pressed') === 'true', 'heading pressed');
+    await page.keyboard.press('Enter');
+    await page.click('app-notes .notes-tool--bold');
+    await page.keyboard.type('milk');
+    await page.waitForTimeout(600);
+    let notes = await stored();
+    assert(notes.length === 1 && /<h2>Shopping list<\/h2>/.test(notes[0].html) && /<b>milk<\/b>/.test(notes[0].html), `saved: ${JSON.stringify(notes)}`);
+    assert(/Saved \d\d:\d\d/.test(await page.textContent('app-notes .notes-status')), 'saved indicator');
+
+    // Paste: only sanitized markup gets in.
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/html', '<img src=x onerror="window.__xss=1"> pasted<script>window.__xss=2</script><a href="javascript:window.__xss=3">bad</a>');
+      document.querySelector('app-notes .notes-editor').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await page.waitForTimeout(600);
+    const editorHtml = await page.innerHTML('app-notes .notes-editor');
+    assert(!/<img|<script|javascript:/i.test(editorHtml) && /pasted/.test(editorHtml), `after paste: ${editorHtml}`);
+    assert(await page.evaluate(() => window.__xss === undefined), 'pasted script ran');
+
+    // Link: unsafe refused inline, a bare host becomes https; Cmd/Ctrl+click opens it.
+    await page.click('app-notes .notes-tool--link');
+    await page.fill('app-notes .notes-link-input', 'javascript:alert(1)');
+    await page.keyboard.press('Enter');
+    assert(/http/.test(await page.textContent('app-notes .notes-link-error')), 'unsafe link explained');
+    await page.fill('app-notes .notes-link-input', 'example.com');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(600);
+    notes = await stored();
+    assert(/<a href="https:\/\/example\.com" rel="noopener noreferrer" target="_blank">/.test(notes[0].html), `link: ${notes[0].html}`);
+    const popup = page.context().waitForEvent('page', { timeout: 2000 });
+    await page.click('app-notes .notes-editor a', { modifiers: ['ControlOrMeta'] });
+    const opened = await popup;
+    assert(/example\.com/.test(opened.url()), `opened ${opened.url()}`);
+    await opened.close();
+
+    // Another tab adds a note: the list updates, the editor keeps focus, caret and content.
+    await page.evaluate(() => {
+      const editor = document.querySelector('app-notes .notes-editor');
+      editor.focus();
+      getSelection().selectAllChildren(editor);
+      getSelection().collapseToEnd();
+    });
+    await page.keyboard.type(' end');
+    const other = await page.context().newPage();
+    await other.goto(`${BASE}/`);
+    await other.evaluate(() => {
+      const list = JSON.parse(localStorage.getItem('dashboard:app:notes'));
+      localStorage.setItem('dashboard:app:notes', JSON.stringify([...list, { id: 'other', html: '<p>From the other tab</p>', updatedAt: Date.now() }]));
+    });
+    await page.waitForFunction(() => /From the other tab/.test(document.querySelector('app-notes .notes-list-pane').textContent));
+    await page.keyboard.type('!');
+    const kept = await page.evaluate(() => ({
+      focus: document.activeElement.matches('app-notes .notes-editor'),
+      text: document.querySelector('app-notes .notes-editor').textContent,
+    }));
+    assert(kept.focus && /end!$/.test(kept.text), `editor after cross-tab write: ${JSON.stringify(kept)}`);
+
+    // Expanded: list and editor side by side.
+    await page.click('app-notes [data-expand]');
+    await page.waitForTimeout(400);
+    const panes = await page.evaluate(() => ['.notes-list-pane', '.notes-editor-pane'].map(s => getComputedStyle(document.querySelector(`app-notes ${s}`)).display));
+    assert(panes.join() === 'flex,flex', `expanded panes: ${panes}`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+
+    // The open note is deleted in the other tab: the editor closes.
+    const openId = (await stored()).find(n => n.id !== 'other').id;
+    await other.evaluate((id) => {
+      const list = JSON.parse(localStorage.getItem('dashboard:app:notes'));
+      localStorage.setItem('dashboard:app:notes', JSON.stringify(list.filter(n => n.id !== id)));
+    }, openId);
+    await page.waitForSelector('app-notes .notes-editor', { state: 'detached' });
+    await other.close();
+
+    // Inline delete confirm.
+    await page.click('app-notes .note-item');
+    await page.click('app-notes [data-action="delete"]');
+    await page.click('app-notes [data-action="confirm-delete"]');
+    notes = await stored();
+    await close();
+    assert(notes.length === 0, `after delete: ${JSON.stringify(notes)}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
