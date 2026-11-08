@@ -55,13 +55,12 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links. |
 
-When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is bumped; older saved configs get the new layout but keep enabled flags, grid settings and weather settings.
+When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is bumped; older saved configs get the new layout but keep enabled flags, grid settings and weather settings (v3 resets grid settings from older versions, which were never applied).
 
 ---
 
 ## Known Limitations
 
-- The `grid` values in config (`columns`, `cellSize`, `padding`) aren't applied yet; the grid is fixed at 12 columns of 100px (from `core/theme.css`).
 - The grid is not responsive on narrow screens.
 - Units (metric/imperial) can only be changed by editing `dashboard:config`; the setup dialog has no units selector.
 - Expanding a module doesn't move focus into it.

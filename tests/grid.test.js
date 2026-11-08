@@ -11,7 +11,12 @@ class MockElement {
   constructor(tagName = 'div') {
     this.tagName = tagName.toUpperCase();
     this._children = [];
-    this.style = {};
+    // Like a browser, custom properties only stick via setProperty().
+    const props = new Map();
+    this.style = {
+      setProperty: (name, value) => props.set(name, value),
+      getPropertyValue: (name) => props.get(name) ?? '',
+    };
     this.dataset = {};
     this.attributes = {};
   }
@@ -82,8 +87,9 @@ test('GridEngine initializes grid properties and mounts module elements into she
   await engine.init();
   await flush();
 
-  assert.strictEqual(shell.style['--grid-cols'], '8');
-  assert.strictEqual(shell.style['--cell-size'], '100px');
+  assert.strictEqual(shell.style.getPropertyValue('--grid-cols'), '8');
+  assert.strictEqual(shell.style.getPropertyValue('--cell-size'), '100px');
+  assert.strictEqual(shell.style.getPropertyValue('--module-padding'), '20px');
   assert.strictEqual(shell.children.length, 2);
 
   const clockEl = shell.children[0];

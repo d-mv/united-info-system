@@ -33,9 +33,10 @@ export class GridEngine {
     this.renderedLayout = layoutOf(config);
     const gridOpts = config.grid || { columns: 8, cellSize: 100, padding: 20 };
 
-    this.shellElement.style['--grid-cols'] = String(gridOpts.columns);
-    this.shellElement.style['--cell-size'] = `${gridOpts.cellSize}px`;
-    this.shellElement.style['--module-padding'] = `${gridOpts.padding}px`;
+    // Custom properties only take effect through setProperty().
+    this.shellElement.style.setProperty('--grid-cols', String(gridOpts.columns));
+    this.shellElement.style.setProperty('--cell-size', `${gridOpts.cellSize}px`);
+    this.shellElement.style.setProperty('--module-padding', `${gridOpts.padding}px`);
 
     this.shellElement.replaceChildren();
     // Any expanded module is gone after a re-render; release the page scroll lock and scrim.

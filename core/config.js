@@ -1,14 +1,15 @@
 import { storage } from './storage.js';
 
 // Bump when DEFAULT_CONFIG.modules layout changes; older saved configs get the new layout.
-export const CONFIG_VERSION = 2;
+// v3: grid values are applied for the first time; padding default matches the theme (16px).
+export const CONFIG_VERSION = 3;
 
 export const DEFAULT_CONFIG = {
   version: CONFIG_VERSION,
   grid: {
     cellSize: 100,
     columns: 12,
-    padding: 20
+    padding: 16
   },
   modules: [
     { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
@@ -46,13 +47,14 @@ export class ConfigManager {
 
   // Layout isn't user-editable yet, so module positions come from the defaults.
   // Keep what the user did choose: enabled flags, grid settings and secrets.
+  // Grid settings saved before v3 were never applied, so they reset to defaults.
   _migrate(oldConfig) {
     const defaults = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     const oldModules = Array.isArray(oldConfig.modules) ? oldConfig.modules : [];
     const enabledById = new Map(oldModules.map(m => [m.id, m.enabled]));
     return {
       ...defaults,
-      grid: { ...defaults.grid, ...(oldConfig.grid || {}) },
+      grid: oldConfig.version >= 3 ? { ...defaults.grid, ...(oldConfig.grid || {}) } : defaults.grid,
       modules: defaults.modules.map(m => (
         enabledById.has(m.id) ? { ...m, enabled: enabledById.get(m.id) } : m
       )),

@@ -75,3 +75,15 @@ test('Default layout has no overlapping modules', async () => {
     }
   }
 });
+
+test('ConfigManager resets grid settings saved before they were applied (v3)', () => {
+  localStorage.clear();
+  localStorage.setItem('dashboard:config', JSON.stringify({
+    version: 2,
+    grid: { cellSize: 100, columns: 12, padding: 20 },
+    modules: [],
+    secrets: {}
+  }));
+  const config = new ConfigManager().get();
+  assert.strictEqual(config.grid.padding, 16, 'matches the theme default, so the look does not change');
+});
