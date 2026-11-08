@@ -23,7 +23,8 @@ export const DEFAULT_CONFIG = {
     { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
     { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 3 },
     { id: 'bookmarks', enabled: true, cols: 4, rows: 4, col: 3, row: 1 },
-    { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 }
+    { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 },
+    { id: 'notes', enabled: true, cols: 4, rows: 4, col: 1, row: 5 }
   ],
   secrets: {
     weather: {
