@@ -4,13 +4,15 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 
 const PORT = 8899;
 const SERVER_PATH = path.resolve('start.sh');
 
-function startServer() {
+function startServer(root) {
   return new Promise((resolve, reject) => {
-    const serverProc = spawn(SERVER_PATH, [String(PORT)], {
+    const serverProc = spawn(SERVER_PATH, root ? [String(PORT), root] : [String(PORT)], {
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -106,5 +108,20 @@ test('start.sh only answers requests addressed to localhost (DNS rebinding)', as
     }
   } finally {
     proc.kill('SIGTERM');
+  }
+});
+
+test('start.sh keeps + in paths literal (only form data uses + for space)', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uis-serve-'));
+  fs.writeFileSync(path.join(root, 'a+b.txt'), 'plus');
+  fs.writeFileSync(path.join(root, 'a b.txt'), 'space');
+  const proc = await startServer(root);
+  try {
+    assert.match(await get('/a+b.txt'), /\r\n\r\nplus$/);
+    assert.match(await get('/a%2Bb.txt'), /\r\n\r\nplus$/);
+    assert.match(await get('/a%20b.txt'), /\r\n\r\nspace$/);
+  } finally {
+    proc.kill('SIGTERM');
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

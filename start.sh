@@ -9,7 +9,6 @@
 
 require 'socket'
 require 'time'
-require 'uri'
 
 PORT = (ARGV[0] || 8000).to_i
 ROOT = File.expand_path(ARGV[1] || '.')
@@ -49,9 +48,10 @@ def mime_for(path)
 end
 
 def resolved_path(request_path)
-  # strip query string, decode percent-encoding
+  # strip query string, decode percent-encoding. Paths keep '+' literal
+  # ('+' means space only in form data), so decode %XX by hand: works on any Ruby.
   clean = request_path.split('?').first.to_s
-  clean = URI.decode_www_form_component(clean)
+  clean = clean.gsub(/%\h\h/) { |escape| escape[1, 2].hex.chr }.force_encoding(Encoding::UTF_8)
   clean = '/index.html' if clean == '/'
 
   # never serve dotfiles or dot-directories (.git, .gitignore, ...); this also rejects '..'
