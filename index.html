@@ -9,18 +9,17 @@
 <link rel="stylesheet" href="/core/theme.css">
 <style>
   /* Critical CSS inlined for fast first paint. Full tokens live in core/theme.css. */
+  /* Light/dark follows color-scheme: the OS (prefers-color-scheme: dark) unless
+     Settings picked one; the script below sets data-theme before first paint. */
   :root {
+    color-scheme: light dark;
     --font-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --color-canvas: #edeae1;
-    --color-ink: #1c1b18;
+    --color-canvas: light-dark(#edeae1, #171613);
+    --color-ink: light-dark(#1c1b18, #e9e5da);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --color-canvas: #171613;
-      --color-ink: #e9e5da;
-    }
-  }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
   html {
     font-size: 62.5%;
     font-family: var(--font-sans);
@@ -32,6 +31,14 @@
     font-family: var(--font-sans);
   }
 </style>
+<script>
+  // Apply the saved theme and accent before anything paints (no flash).
+  try {
+    var appearance = (JSON.parse(localStorage.getItem('dashboard:config')) || {}).appearance || {};
+    if (appearance.theme === 'light' || appearance.theme === 'dark') document.documentElement.dataset.theme = appearance.theme;
+    if (/^(orange|green|blue|graphite)$/.test(appearance.accent || '')) document.documentElement.dataset.accent = appearance.accent;
+  } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -46,12 +53,14 @@
     import { GridEngine } from '/core/grid.js';
     import { setupExpandController } from '/core/expand.js';
     import { setupLayoutEditor } from '/core/layout-editor.js';
+    import { setupAppearance } from '/core/appearance.js';
     import '/core/shell-bar.js';
     import '/core/palette.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
       setupExpandController();
       setupLayoutEditor();
+      setupAppearance();
       const engine = new GridEngine();
       await engine.init();
     });

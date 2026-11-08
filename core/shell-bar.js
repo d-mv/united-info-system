@@ -7,6 +7,9 @@ import { configManager } from './config.js';
 import { moduleName } from './registry.js';
 import { setEnabled } from './layout.js';
 import { TOGGLE_LAYOUT, LAYOUT_MODE } from './layout-editor.js';
+import { THEMES, ACCENTS, resolveAppearance } from './appearance.js';
+
+const label = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { escapeHtml } from './html.js';
 import { buildBackup, parseBackup, restoreBackup, downloadBackup } from './backup.js';
 import { registerCommands } from './commands.js';
@@ -34,6 +37,7 @@ export class ShellBar extends HTMLElement {
       { title: 'Settings', keywords: 'preferences options', run: () => this.openSettings() },
       { title: 'Export backup', keywords: 'download data json', run: () => this.exportData() },
       { title: this.layoutEditing ? 'Finish editing layout' : 'Edit layout', keywords: 'move resize arrange modules', run: () => this.toggleLayout() },
+      ...THEMES.map(theme => ({ title: `Theme: ${label(theme)}`, keywords: 'appearance mode dark light', run: () => this.setAppearance({ theme }) })),
     ]);
     if (typeof document !== 'undefined') document.addEventListener(LAYOUT_MODE, this._onLayoutMode);
     this.render();
@@ -41,6 +45,11 @@ export class ShellBar extends HTMLElement {
 
   toggleLayout() {
     if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent(TOGGLE_LAYOUT));
+  }
+
+  setAppearance(change) {
+    const current = resolveAppearance(this.configManager.get().appearance);
+    this.configManager.update({ appearance: { ...current, ...change } });
   }
 
   toggleModule(id, enabled) {
@@ -137,6 +146,17 @@ export class ShellBar extends HTMLElement {
       </div>`;
   }
 
+  renderAppearance() {
+    const { theme, accent } = resolveAppearance(this.configManager.get().appearance);
+    const themes = THEMES.map(t => `
+      <label class="segment"><input type="radio" name="theme" value="${t}" ${t === theme ? 'checked' : ''}><span>${label(t)}</span></label>`).join('');
+    const accents = ACCENTS.map(a => `
+      <label class="swatch" title="${label(a)}"><input type="radio" name="accent" value="${a}" ${a === accent ? 'checked' : ''} aria-label="${label(a)} accent"><span class="swatch__dot swatch__dot--${a}"></span></label>`).join('');
+    return `
+      <div class="settings-row" role="radiogroup" aria-label="Theme">${themes}</div>
+      <div class="settings-row" role="radiogroup" aria-label="Accent colour">${accents}</div>`;
+  }
+
   renderSettings() {
     return `
       <dialog class="dialog settings-dialog" aria-labelledby="settings-title">
@@ -145,6 +165,10 @@ export class ShellBar extends HTMLElement {
           <button type="button" class="zoom-button" data-action="close-settings" aria-label="Close"><span class="icon icon--close" aria-hidden="true"></span></button>
         </div>
         <div class="dialog__body">
+          <section class="settings-section" aria-labelledby="settings-look">
+            <p class="label" id="settings-look">Appearance</p>
+            ${this.renderAppearance()}
+          </section>
           <section class="settings-section" aria-labelledby="settings-modules">
             <p class="label" id="settings-modules">Modules</p>
             <div class="settings-modules">
@@ -190,6 +214,9 @@ export class ShellBar extends HTMLElement {
         this.closeSettings();
       });
     }
+    this.querySelectorAll('input[name="theme"], input[name="accent"]').forEach(radio => {
+      radio.addEventListener('change', () => this.setAppearance({ [radio.name]: radio.value }));
+    });
     const input = this.querySelector('.backup-input');
     if (input) {
       input.addEventListener('change', async () => {

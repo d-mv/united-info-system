@@ -20,7 +20,7 @@
 - **Shell bar**: a slim bar above the grid. **Settings → Data** exports everything as one JSON backup file (`uis-backup-YYYY-MM-DD.json`; it includes API keys and tokens, so keep it private) and imports one back. Importing shows what the file holds and asks before it replaces all UIS data, then reloads the page.
 - **Command palette**: `⌘K` / `Ctrl+K` anywhere, `/` when not typing, or the `⌘K` button in the bar. Type to find a bookmark, mark a task done, add a task (`Add task: …`), start a timer (`10`, `10m`, `timer 25`), start Pomodoro, open Alarms, dismiss a ring, expand/collapse a module, open Settings, export a backup, or search the web (DuckDuckGo). Each module adds its own commands while it is on the page (`core/commands.js`).
 - **Layout editor**: **Edit layout** in the bar (or the palette) puts an overlay on each module: drag to move, drag the corner to resize, or focus one and use arrow keys (Shift+arrows resize); **Hide** removes it from the page. Moves that leave the grid or overlap another module are refused. **Settings → Modules** turns modules on and off. Wide windows only (below 900px the grid stacks).
-- **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
+- **Theme**: Auto (follows the OS), Light or Dark, plus an accent colour (red, orange, green, blue, graphite) in **Settings → Appearance**; also `Theme: …` in the palette. Colours are `light-dark()` tokens driven by `color-scheme`, and an inline script applies the saved choice before first paint. Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
 
 ---
 
@@ -51,7 +51,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 
 | Key | Contents |
 |---|---|
-| `dashboard:config` | Config version, grid settings, enabled modules and their placement, weather settings (provider, city, units, API key). |
+| `dashboard:config` | Config version, grid settings, enabled modules and their placement, appearance (theme, accent), weather settings (provider, city, units, API key). |
 | `dashboard:clock` | Alarms (time, weekdays, on/off, last day each rang), countdown timer (end time while running, remaining time while paused), Pomodoro phase, second time zone and the current ringing state. An older single `alarm` is carried over into the list if it was on. |
 | `dashboard:weather:rain-alert` | Last rain event a notification was sent for (so it isn't repeated). |
 | `dashboard:weather:cache` | Last weather reading and the provider, city and units it was fetched for (shown only while those match the settings). |

@@ -10,7 +10,7 @@ test('index.html exists and contains critical shell structure', () => {
   const content = fs.readFileSync(indexPath, 'utf-8');
   assert.ok(content.includes('<div id="shell"></div>'), 'Must contain #shell element');
   assert.ok(content.includes('<shell-bar'), 'Must contain the shell bar');
-  assert.ok(content.includes('prefers-color-scheme: dark'), 'Must contain dark theme media query in critical CSS');
+  assert.ok(content.includes('light-dark(') && content.includes('data-theme'), 'Critical CSS follows color-scheme and the saved theme');
   assert.ok(content.includes('type="module"'), 'Must load core module script');
 });
 

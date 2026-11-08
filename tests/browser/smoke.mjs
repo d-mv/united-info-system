@@ -357,6 +357,30 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'appearance: dark theme and accent apply live and before paint on reload'(browser) {
+    const { page, errors, close } = await freshPage(browser); // OS scheme: light
+    const look = () => page.evaluate(() => ({
+      bg: getComputedStyle(document.body).backgroundColor,
+      accent: getComputedStyle(document.querySelector('.todo-now.is-active .todo-now__dot') || document.body).backgroundColor,
+      theme: document.documentElement.dataset.theme || 'auto',
+    }));
+    const before = await look();
+    await page.click('shell-bar [data-action="open-settings"]');
+    await page.click('shell-bar .segment:has(input[value="dark"])');
+    await page.click('shell-bar .swatch:has(input[value="green"])');
+    await page.waitForTimeout(300); // colour transitions
+    const live = await look();
+    assert(live.theme === 'dark' && live.bg !== before.bg, `live: ${JSON.stringify(live)}`);
+    assert(live.accent === 'rgb(76, 175, 114)', `green accent in dark: ${live.accent}`);
+
+    // With every script file blocked, only the inline head script can set the theme.
+    await page.route(/\.js$/, r => r.abort());
+    await page.reload();
+    const early = await page.evaluate(() => document.documentElement.dataset.theme);
+    await close();
+    assert(early === 'dark', `early theme: ${early}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);
