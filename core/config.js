@@ -25,6 +25,7 @@ export const DEFAULT_CONFIG = {
     { id: 'bookmarks', enabled: true, cols: 4, rows: 4, col: 3, row: 1 },
     { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 },
     { id: 'notes', enabled: true, cols: 4, rows: 4, col: 1, row: 5 },
+    { id: 'calendar', enabled: true, cols: 4, rows: 4, col: 5, row: 5 },
     { id: 'jira', enabled: true, cols: 4, rows: 4, col: 9, row: 5 },
     { id: 'currency', enabled: true, cols: 3, rows: 2, col: 1, row: 9 }
   ],

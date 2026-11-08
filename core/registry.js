@@ -10,6 +10,7 @@ export const registry = {
   notes:     { type: 'app',    name: 'Notes',     load: () => import('../apps/notes/notes-app.js') },
   jira:      { type: 'app',    name: 'Jira',      load: () => import('../apps/jira/jira-app.js') },
   currency:  { type: 'app',    name: 'Currency',  load: () => import('../apps/currency/currency-app.js') },
+  calendar:  { type: 'app',    name: 'Calendar',  load: () => import('../apps/calendar/calendar-app.js') },
 };
 
 /** Display name for a module id. */

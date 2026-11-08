@@ -114,7 +114,8 @@ test('time until a weekday alarm skips to its next day', () => {
   const friOnly = { time: '07:30', enabled: true, lastFiredDate: null, days: [5] };
   assert.strictEqual(msUntilAlarm(friOnly, at(8, 0)), (23 * 60 + 30) * 60000, 'Thu 08:00 -> Fri 07:30');
   const thuOnly = { ...friOnly, days: [4] };
-  assert.strictEqual(msUntilAlarm(thuOnly, at(8, 0)), (7 * 24 * 60 - 30) * 60000, 'passed today -> next week');
+  // Calendar arithmetic, so a DST change during that week (e.g. US, 1 Nov) is accounted for.
+  assert.strictEqual(msUntilAlarm(thuOnly, at(8, 0)), new Date(2026, 9, 29 + 7, 7, 30).getTime() - at(8, 0), 'passed today -> next week');
 });
 
 test('arming a weekday alarm passed today on another weekday does not block today', () => {

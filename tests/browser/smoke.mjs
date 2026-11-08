@@ -87,7 +87,7 @@ const checks = {
     const { page, errors, close } = await freshPage(browser);
     const mounted = await page.evaluate(() => [...document.querySelectorAll('#shell > .module')].map(m => m.tagName.toLowerCase()));
     await close();
-    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-notes,app-jira,app-currency', `mounted: ${mounted}`);
+    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-notes,app-calendar,app-jira,app-currency', `mounted: ${mounted}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
@@ -595,6 +595,60 @@ const checks = {
     const after = await result();
     await close();
     assert(after === '10,596', `cached result kept offline: ${after}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
+  async 'calendar: reminder banner + notification, .ics import, month view, remove source'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.evaluate(() => {
+      window.__notes = [];
+      window.Notification = class { static permission = 'granted'; static requestPermission() { return Promise.resolve('granted'); } constructor(t, o) { window.__notes.push([t, o.body]); } close() {} };
+    });
+    // Starts in 4 minutes with a 5-minute reminder: due a minute ago, inside the grace window.
+    const soon = await page.evaluate(() => {
+      const d = new Date(Date.now() + 4 * 60000);
+      const p = (n) => String(n).padStart(2, '0');
+      return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, time: `${p(d.getHours())}:${p(d.getMinutes())}` };
+    });
+    await page.click('app-calendar [data-action="new-event"]', { force: true });
+    await page.fill('app-calendar dialog input[name="title"]', 'Call <Ana>');
+    await page.fill('app-calendar dialog input[name="date"]', soon.date);
+    await page.fill('app-calendar dialog input[name="start"]', soon.time);
+    await page.fill('app-calendar dialog input[name="end"]', '');
+    await page.selectOption('app-calendar dialog select[name="reminder"]', '5');
+    await page.click('app-calendar dialog button[type="submit"]');
+    await page.waitForSelector('app-calendar .cal-ring');
+    const ring = await page.textContent('app-calendar .cal-ring');
+    assert(ring.includes('Call <Ana>') && ring.includes(soon.time), `banner: ${ring}`);
+    const notes = await page.evaluate(() => window.__notes);
+    assert(notes.length === 1 && notes[0][0] === 'Call <Ana>', `notifications: ${JSON.stringify(notes)}`);
+    assert(await page.evaluate(() => document.activeElement.matches('app-calendar [data-action="new-event"]')), 'focus back on + Event');
+    await page.click('app-calendar [data-action="dismiss"]');
+    assert(!(await page.isVisible('app-calendar .cal-ring')), 'dismissed');
+
+    const ics = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:x1', 'SUMMARY:Imported thing', `DTSTART;VALUE=DATE:${soon.date.replace(/-/g, '')}`, 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:x2', 'SUMMARY:Odd', 'DTSTART:20260101T100000Z', 'RRULE:FREQ=MONTHLY;BYDAY=2TU', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    await page.setInputFiles('app-calendar .cal-import-input', { name: 'work.ics', mimeType: 'text/calendar', buffer: Buffer.from(ics) });
+    await page.waitForSelector('app-calendar .cal-notice:has-text("Imported")');
+    const notice = await page.textContent('app-calendar .cal-notice');
+    assert(notice === 'Imported 2 events · 1 recurring rule simplified', `notice: ${notice}`);
+    assert(/Imported thing/.test(await page.textContent('app-calendar .cal-agenda')), 'imported event in the agenda');
+    await page.setInputFiles('app-calendar .cal-import-input', { name: 'bad.ics', mimeType: 'text/calendar', buffer: Buffer.from('nope') });
+    await page.waitForSelector('app-calendar .cal-notice.is-error');
+
+    await page.click('app-calendar [data-expand]', { force: true });
+    await page.waitForTimeout(400);
+    assert(await page.isVisible('app-calendar .cal-grid'), 'month grid shown when expanded');
+    assert(!(await page.isVisible('app-calendar .cal-agenda')), 'agenda hidden when expanded');
+    await page.focus('app-calendar .cal-cell[tabindex="0"]');
+    const before = await page.evaluate(() => document.activeElement.dataset.date);
+    await page.keyboard.press('ArrowRight');
+    const after = await page.evaluate(() => document.activeElement.dataset.date);
+    assert(after && after > before, `arrow moved ${before} -> ${after}`);
+    await page.click('app-calendar [data-action="remove-source"]');
+    const left = await page.evaluate(() => JSON.parse(localStorage.getItem('dashboard:app:calendar')).map(e => e.title));
+    await close();
+    assert(left.join() === 'Call <Ana>', `after remove: ${left}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
