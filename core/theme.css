@@ -290,6 +290,65 @@ button {
 .palette-empty { padding: 1.2rem 1.6rem; }
 .palette-help { padding: 0.8rem 1.6rem; border-top: 1px solid var(--color-line); }
 
+.settings-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.8rem 1.6rem; }
+.settings-module { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+.settings-module .todo-check {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin: 0;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.settings-module .todo-check:checked { background: var(--color-ink); border-color: var(--color-ink); }
+.settings-module .todo-check:checked::after {
+  content: "";
+  width: 0.7rem;
+  height: 0.4rem;
+  margin-top: -0.2rem;
+  border-left: 1.5px solid var(--color-ink-inverse);
+  border-bottom: 1.5px solid var(--color-ink-inverse);
+  transform: rotate(-45deg);
+}
+.shell-bar__layout.is-active { color: var(--color-accent); }
+
+/* Layout editing: overlays sit on top of their modules in the same grid cells. */
+.layout-overlay {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.2rem;
+  border: 1px dashed var(--color-ink-muted);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-raised) 82%, transparent);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.layout-overlay:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.layout-overlay.is-dragging { cursor: grabbing; border-style: solid; border-color: var(--color-ink); }
+.layout-overlay.is-invalid { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent-wash) 100%, var(--color-raised) 70%); }
+.layout-overlay__name { font-weight: 500; }
+.layout-overlay__size { color: var(--color-ink-muted); font-size: var(--text-xs); margin-right: auto; }
+.layout-overlay__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--color-ink-muted) 50%);
+}
+@media (max-width: 900px) {
+  .layout-overlay, .shell-bar__layout:not(.is-active) { display: none; }
+}
+
 .dialog.settings-dialog { width: min(56rem, calc(100vw - 3.2rem)); }
 .settings-section { display: flex; flex-direction: column; gap: 1rem; }
 .settings-section + .settings-section { padding-top: 1.6rem; border-top: 1px solid var(--color-line); }

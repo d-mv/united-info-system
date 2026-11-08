@@ -3,11 +3,16 @@
  * Maps module IDs to dynamic loaders and isolates module load errors.
  */
 export const registry = {
-  clock:     { type: 'app',    load: () => import('../apps/clock/clock-app.js') },
-  weather:   { type: 'widget', load: () => import('../widgets/weather/weather-widget.js') },
-  bookmarks: { type: 'app',    load: () => import('../apps/bookmarks/bookmarks-app.js') },
-  todo:      { type: 'app',    load: () => import('../apps/todo/todo-app.js') },
+  clock:     { type: 'app',    name: 'Clock',     load: () => import('../apps/clock/clock-app.js') },
+  weather:   { type: 'widget', name: 'Weather',   load: () => import('../widgets/weather/weather-widget.js') },
+  bookmarks: { type: 'app',    name: 'Bookmarks', load: () => import('../apps/bookmarks/bookmarks-app.js') },
+  todo:      { type: 'app',    name: 'Todo',      load: () => import('../apps/todo/todo-app.js') },
 };
+
+/** Display name for a module id. */
+export function moduleName(id) {
+  return (registry[id] && registry[id].name) || id;
+}
 
 export function registerModule(id, definition) {
   registry[id] = definition;

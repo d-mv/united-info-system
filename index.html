@@ -45,11 +45,13 @@
     import { configManager } from '/core/config.js';
     import { GridEngine } from '/core/grid.js';
     import { setupExpandController } from '/core/expand.js';
+    import { setupLayoutEditor } from '/core/layout-editor.js';
     import '/core/shell-bar.js';
     import '/core/palette.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
       setupExpandController();
+      setupLayoutEditor();
       const engine = new GridEngine();
       await engine.init();
     });

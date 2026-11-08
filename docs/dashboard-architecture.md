@@ -123,7 +123,7 @@ This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs
 }
 ```
 
-`core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. It re-renders the shell only when the layout part of the config (`grid` and `modules`) changes. Widget settings live in the same key (`secrets`), so widgets that have settings subscribe to the config themselves (the weather widget refetches when its provider, city or key changes).
+`core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. It remounts modules only when the grid settings or the set of shown modules change; a module that is only moved or resized keeps its element (`updatePlacement`). Widget settings live in the same key (`secrets`), so widgets that have settings subscribe to the config themselves (the weather widget refetches when its provider, city or key changes).
 
 `grid.js` sets `--grid-cols`, `--cell-size` and `--module-padding` on `#shell` from `config.grid` with `style.setProperty()` (defaults: 12 columns, 100px cells, 16px padding, matching `core/theme.css`). Config v3 resets grid values saved by older versions, which were never applied. Columns are `minmax(0, --cell-size)`, so the grid shrinks with narrower windows; below 900px modules stack in one column in config order (`!important` overrides the inline placement). The clock time scales with its module via a container query.
 

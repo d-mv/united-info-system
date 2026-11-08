@@ -5,6 +5,13 @@ import { loadModule } from './registry.js';
 // config key but must not tear down the dashboard when they change.
 const layoutOf = (config) => JSON.stringify({ grid: config.grid, modules: config.modules });
 
+// What needs a remount: the grid settings and which modules are shown, in order.
+// Moving or resizing a shown module only changes its placement.
+const mountsOf = (config) => JSON.stringify({
+  grid: config.grid,
+  ids: (config.modules || []).filter(m => m.enabled !== false).map(m => m.id),
+});
+
 export class GridEngine {
   constructor(options = {}) {
     this.shellElement = options.shellElement || (typeof document !== 'undefined' ? document.getElementById('shell') : null);
@@ -23,7 +30,9 @@ export class GridEngine {
 
     if (this.configManager.subscribe) {
       this.unsubscribe = this.configManager.subscribe((config) => {
-        if (layoutOf(config) !== this.renderedLayout) this.renderGrid();
+        if (layoutOf(config) === this.renderedLayout) return;
+        if (mountsOf(config) === this.renderedMounts) this.updatePlacement(config);
+        else this.renderGrid();
       });
     }
   }
@@ -33,6 +42,7 @@ export class GridEngine {
 
     const config = this.configManager.get();
     this.renderedLayout = layoutOf(config);
+    this.renderedMounts = mountsOf(config);
     const gridOpts = config.grid || { columns: 8, cellSize: 100, padding: 20 };
 
     // Custom properties only take effect through setProperty().
@@ -52,6 +62,16 @@ export class GridEngine {
       this.shellElement.appendChild(placeholder);
 
       this._loadAndMount(modConfig, placeholder, gen);
+    }
+  }
+
+  /** Re-place mounted modules (and skeletons still loading) without remounting them. */
+  updatePlacement(config) {
+    this.renderedLayout = layoutOf(config);
+    const byId = new Map((config.modules || []).map(m => [m.id, m]));
+    for (const el of this.shellElement.children) {
+      const modConfig = el.dataset && byId.get(el.dataset.module);
+      if (modConfig) this._applyGridStyle(el, modConfig);
     }
   }
 

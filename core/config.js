@@ -1,8 +1,11 @@
 import { storage } from './storage.js';
+import { registry } from './registry.js';
+import { normalizeModules } from './layout.js';
 
-// Bump when DEFAULT_CONFIG.modules layout changes; older saved configs get the new layout.
 // v3: grid values are applied for the first time; padding default matches the theme (16px).
-export const CONFIG_VERSION = 3;
+// v4: layout is user-editable, so saved module placement is kept from now on.
+// New modules don't need a bump: normalizeModules() appends missing defaults.
+export const CONFIG_VERSION = 4;
 
 export const DEFAULT_CONFIG = {
   version: CONFIG_VERSION,
@@ -41,25 +44,42 @@ export class ConfigManager {
     } else if (currentConfig.version !== CONFIG_VERSION) {
       currentConfig = this._migrate(currentConfig);
       this.storage.set(this.storageKey, currentConfig);
+    } else {
+      // Modules added or removed since this config was saved.
+      const modules = normalizeModules(currentConfig.modules, DEFAULT_CONFIG.modules, Object.keys(registry));
+      if (JSON.stringify(modules) !== JSON.stringify(currentConfig.modules)) {
+        currentConfig = { ...currentConfig, modules };
+        this.storage.set(this.storageKey, currentConfig);
+      }
     }
     return currentConfig;
   }
 
-  // Layout isn't user-editable yet, so module positions come from the defaults.
-  // Keep what the user did choose: enabled flags, grid settings and secrets.
+  // Before v3 the layout wasn't editable, so module positions come from the
+  // defaults (keeping enabled flags); from v3 on the saved placement is kept.
   // Grid settings saved before v3 were never applied, so they reset to defaults.
   _migrate(oldConfig) {
     const defaults = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     const oldModules = Array.isArray(oldConfig.modules) ? oldConfig.modules : [];
     const enabledById = new Map(oldModules.map(m => [m.id, m.enabled]));
+    const modules = oldConfig.version >= 3
+      ? oldModules
+      : defaults.modules.map(m => (enabledById.has(m.id) ? { ...m, enabled: enabledById.get(m.id) } : m));
     return {
+      ...oldConfig,
       ...defaults,
       grid: oldConfig.version >= 3 ? { ...defaults.grid, ...(oldConfig.grid || {}) } : defaults.grid,
-      modules: defaults.modules.map(m => (
-        enabledById.has(m.id) ? { ...m, enabled: enabledById.get(m.id) } : m
-      )),
+      modules: normalizeModules(modules, defaults.modules, Object.keys(registry)),
       secrets: { ...defaults.secrets, ...(oldConfig.secrets || {}) },
     };
+  }
+
+  getModules() {
+    return this.get().modules || [];
+  }
+
+  setModules(modules) {
+    return this.update({ modules });
   }
 
   update(partialConfig) {

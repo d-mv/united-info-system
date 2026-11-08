@@ -3,6 +3,10 @@
  * (data export/import for now).
  */
 import { storage } from './storage.js';
+import { configManager } from './config.js';
+import { moduleName } from './registry.js';
+import { setEnabled } from './layout.js';
+import { TOGGLE_LAYOUT, LAYOUT_MODE } from './layout-editor.js';
 import { escapeHtml } from './html.js';
 import { buildBackup, parseBackup, restoreBackup, downloadBackup } from './backup.js';
 import { registerCommands } from './commands.js';
@@ -12,7 +16,13 @@ export class ShellBar extends HTMLElement {
   constructor() {
     super();
     this.storage = storage;
+    this.configManager = configManager;
     this.settingsOpen = false;
+    this.layoutEditing = false;
+    this._onLayoutMode = (e) => {
+      this.layoutEditing = !!(e.detail && e.detail.editing);
+      if (!this.settingsOpen) this.render();
+    };
     // Import flow: null | { backup, summary } waiting for confirmation | { error }
     this.importState = null;
     this._onClick = (e) => this.handleClick(e);
@@ -23,13 +33,24 @@ export class ShellBar extends HTMLElement {
     this.offCommands = registerCommands('shell', () => [
       { title: 'Settings', keywords: 'preferences options', run: () => this.openSettings() },
       { title: 'Export backup', keywords: 'download data json', run: () => this.exportData() },
+      { title: this.layoutEditing ? 'Finish editing layout' : 'Edit layout', keywords: 'move resize arrange modules', run: () => this.toggleLayout() },
     ]);
+    if (typeof document !== 'undefined') document.addEventListener(LAYOUT_MODE, this._onLayoutMode);
     this.render();
+  }
+
+  toggleLayout() {
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent(TOGGLE_LAYOUT));
+  }
+
+  toggleModule(id, enabled) {
+    this.configManager.setModules(setEnabled(this.configManager.getModules(), id, enabled));
   }
 
   disconnectedCallback() {
     if (typeof this.removeEventListener === 'function') this.removeEventListener('click', this._onClick);
     if (this.offCommands) this.offCommands();
+    if (typeof document !== 'undefined') document.removeEventListener(LAYOUT_MODE, this._onLayoutMode);
   }
 
   openSettings() {
@@ -90,6 +111,12 @@ export class ShellBar extends HTMLElement {
         return;
       }
       case 'import-confirm': return this.confirmImport();
+      case 'toggle-layout': return this.toggleLayout();
+      case 'toggle-module': {
+        const input = btn;
+        this.toggleModule(input.dataset.id, !!input.checked);
+        return;
+      }
       case 'import-cancel':
         this.importState = null;
         return this.render();
@@ -118,6 +145,17 @@ export class ShellBar extends HTMLElement {
           <button type="button" class="zoom-button" data-action="close-settings" aria-label="Close"><span class="icon icon--close" aria-hidden="true"></span></button>
         </div>
         <div class="dialog__body">
+          <section class="settings-section" aria-labelledby="settings-modules">
+            <p class="label" id="settings-modules">Modules</p>
+            <div class="settings-modules">
+              ${this.configManager.getModules().map(m => `
+                <label class="settings-module">
+                  <input type="checkbox" class="todo-check" data-action="toggle-module" data-id="${escapeHtml(m.id)}" ${m.enabled !== false ? 'checked' : ''}>
+                  <span>${escapeHtml(moduleName(m.id))}</span>
+                </label>`).join('')}
+            </div>
+            <p class="settings-hint">Move and resize modules with Edit layout in the bar (wide windows only).</p>
+          </section>
           <section class="settings-section" aria-labelledby="settings-data">
             <p class="label" id="settings-data">Data</p>
             <p class="settings-hint">Everything lives in this browser only. A backup file holds all of it, including API keys and tokens, so keep it private.</p>
@@ -136,6 +174,7 @@ export class ShellBar extends HTMLElement {
     this.innerHTML = `
       <nav class="shell-bar__pages" aria-label="Pages"></nav>
       <div class="shell-bar__actions">
+        <button type="button" class="action-button shell-bar__layout${this.layoutEditing ? ' is-active' : ''}" data-action="toggle-layout" aria-pressed="${this.layoutEditing}">${this.layoutEditing ? 'Done' : 'Edit layout'}</button>
         <button type="button" class="action-button" data-action="open-palette" aria-label="Command palette" title="Command palette (⌘K or /)">⌘K</button>
         <button type="button" class="action-button" data-action="open-settings">Settings</button>
       </div>

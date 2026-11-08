@@ -19,6 +19,7 @@
 - **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. Only one module is expanded at a time; the rest of the page is inert while it is, and `Escape` collapses it and returns focus to the button.
 - **Shell bar**: a slim bar above the grid. **Settings → Data** exports everything as one JSON backup file (`uis-backup-YYYY-MM-DD.json`; it includes API keys and tokens, so keep it private) and imports one back. Importing shows what the file holds and asks before it replaces all UIS data, then reloads the page.
 - **Command palette**: `⌘K` / `Ctrl+K` anywhere, `/` when not typing, or the `⌘K` button in the bar. Type to find a bookmark, mark a task done, add a task (`Add task: …`), start a timer (`10`, `10m`, `timer 25`), start Pomodoro, open Alarms, dismiss a ring, expand/collapse a module, open Settings, export a backup, or search the web (DuckDuckGo). Each module adds its own commands while it is on the page (`core/commands.js`).
+- **Layout editor**: **Edit layout** in the bar (or the palette) puts an overlay on each module: drag to move, drag the corner to resize, or focus one and use arrow keys (Shift+arrows resize); **Hide** removes it from the page. Moves that leave the grid or overlap another module are refused. **Settings → Modules** turns modules on and off. Wide windows only (below 900px the grid stacks).
 - **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
 
 ---
@@ -58,7 +59,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links (`title`, `url`, optional `group`). |
 
-When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is bumped; older saved configs get the new layout but keep enabled flags, grid settings and weather settings (v3 resets grid settings from older versions, which were never applied).
+Since config v4 the layout is yours: saved module placement is kept across updates. A module added to UIS later is appended to your layout automatically (below everything else), and modules that no longer exist are dropped (`normalizeModules` in `core/layout.js`). Configs older than v3 get the default layout but keep enabled flags, and their grid settings reset (they were never applied).
 
 ---
 

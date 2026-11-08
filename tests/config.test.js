@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { ConfigManager } from '../core/config.js';
-import { installBrowserGlobals } from './helpers/fake-browser.js';
+import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
 
@@ -86,4 +86,40 @@ test('ConfigManager resets grid settings saved before they were applied (v3)', (
   }));
   const config = new ConfigManager().get();
   assert.strictEqual(config.grid.padding, 16, 'matches the theme default, so the look does not change');
+});
+
+test('v3 -> v4 keeps the saved module placement', () => {
+  const storage = makeStorage({ config: {
+    version: 3,
+    grid: { cellSize: 100, columns: 12, padding: 16 },
+    modules: [
+      { id: 'clock', enabled: true, cols: 2, rows: 2, col: 9, row: 5 },
+      { id: 'weather', enabled: false, cols: 2, rows: 2, col: 1, row: 3 },
+      { id: 'bookmarks', enabled: true, cols: 4, rows: 4, col: 3, row: 1 },
+      { id: 'todo', enabled: true, cols: 6, rows: 4, col: 7, row: 1 },
+    ],
+    secrets: {},
+  } });
+  const config = new ConfigManager({ storage }).get();
+  assert.strictEqual(config.version, 4);
+  const clock = config.modules.find(m => m.id === 'clock');
+  assert.deepStrictEqual([clock.col, clock.row], [9, 5]);
+  assert.strictEqual(config.modules.find(m => m.id === 'weather').enabled, false);
+});
+
+test('a current config gains modules added to the defaults later', async () => {
+  const { registerModule } = await import('../core/registry.js');
+  const { DEFAULT_CONFIG } = await import('../core/config.js');
+  const storage = makeStorage();
+  const manager = new ConfigManager({ storage });
+  manager.get();
+  registerModule('later', { type: 'app', load: async () => ({}) });
+  DEFAULT_CONFIG.modules.push({ id: 'later', enabled: true, cols: 2, rows: 2, col: 1, row: 1 });
+  try {
+    const later = manager.get().modules.find(m => m.id === 'later');
+    assert.ok(later, 'appended');
+    assert.strictEqual(later.row, 5, 'below everything instead of on top of the clock');
+  } finally {
+    DEFAULT_CONFIG.modules.pop();
+  }
 });

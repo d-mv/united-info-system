@@ -36,3 +36,17 @@ test('ShellBar import asks before replacing data and explains bad files', async 
   assert.strictEqual(globalThis.__reloaded, true, 'page reloads so modules re-read their data');
   delete globalThis.location;
 });
+
+test('Settings lists modules and switches them on and off', async () => {
+  const { ShellBar } = await import('../core/shell-bar.js');
+  const { ConfigManager } = await import('../core/config.js');
+  const bar = new ShellBar();
+  bar.storage = makeStorage();
+  bar.configManager = new ConfigManager({ storage: bar.storage });
+  bar.openSettings();
+  assert.ok(bar.innerHTML.includes('data-action="toggle-module" data-id="weather"'));
+  bar.toggleModule('weather', false);
+  assert.strictEqual(bar.configManager.getModules().find(m => m.id === 'weather').enabled, false);
+  bar.toggleModule('weather', true);
+  assert.strictEqual(bar.configManager.getModules().find(m => m.id === 'weather').enabled, true);
+});

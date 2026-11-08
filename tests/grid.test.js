@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { GridEngine } from '../core/grid.js';
-import { ConfigManager, CONFIG_VERSION } from '../core/config.js';
+import { ConfigManager, CONFIG_VERSION, DEFAULT_CONFIG } from '../core/config.js';
 import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
@@ -53,6 +53,12 @@ globalThis.document = {
   createElement: (tagName) => new MockElement(tagName)
 };
 
+// The config adds any default module that's missing, so seed the rest switched off.
+const withOthersOff = (modules) => [
+  ...modules,
+  ...DEFAULT_CONFIG.modules.filter(d => !modules.some(m => m.id === d.id)).map(d => ({ ...d, enabled: false })),
+];
+
 // Let pending module loads settle.
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -63,10 +69,10 @@ test('GridEngine initializes grid properties and mounts module elements into she
       config: {
         version: CONFIG_VERSION,
         grid: { columns: 8, cellSize: 100, padding: 20 },
-        modules: [
+        modules: withOthersOff([
           { id: 'clock', enabled: true, cols: 2, rows: 1, col: 1, row: 1 },
           { id: 'todo', enabled: true, cols: 4, rows: 4, col: 5, row: 1 }
-        ],
+        ]),
         secrets: {}
       }
     })
@@ -106,10 +112,10 @@ function makeEngine() {
       config: {
         version: CONFIG_VERSION,
         grid: { columns: 12, cellSize: 100, padding: 20 },
-        modules: [
+        modules: withOthersOff([
           { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
           { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 3 }
-        ],
+        ]),
         secrets: { weather: { provider: 'openmeteo', apiKey: '', city: 'Porto', units: 'metric' } }
       }
     })
@@ -166,5 +172,23 @@ test('GridEngine ignores module loads that finish after a newer render', async (
 
   assert.strictEqual(shell.children.length, 1);
   assert.strictEqual(shell.children[0].tagName, 'WIDGET-CLOCK');
+  engine.destroy();
+});
+
+test('GridEngine moves modules in place when only their placement changes', async () => {
+  const { shell, configManager, engine, loaded } = makeEngine();
+  await engine.init();
+  await flush();
+  const before = [...shell.children];
+
+  const modules = configManager.get().modules.map(m => (m.id === 'weather' ? { ...m, col: 5, row: 1, cols: 3 } : m));
+  configManager.update({ modules });
+  await flush();
+
+  assert.strictEqual(loaded.length, 2, 'nothing reloaded');
+  assert.deepStrictEqual(shell.children, before, 'same elements');
+  const weather = shell.children.find(el => el.dataset.module === 'weather');
+  assert.strictEqual(weather.style['grid-column'], '5 / span 3');
+  assert.strictEqual(weather.style['grid-row'], '1 / span 2');
   engine.destroy();
 });

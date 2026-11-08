@@ -310,6 +310,53 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'layout editor: drag, keys, refused overlap, hide, no remount'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const placement = (id) => page.evaluate((id) => {
+      const m = JSON.parse(localStorage.getItem('dashboard:config')).modules.find(x => x.id === id);
+      return [m.col, m.row, m.cols, m.rows, m.enabled];
+    }, id);
+    await page.evaluate(() => { document.querySelector('app-todo').__marker = 1; });
+    await page.click('shell-bar [data-action="toggle-layout"]');
+    await page.waitForSelector('.layout-overlay');
+    assert(await page.evaluate(() => document.querySelector('app-todo').inert), 'modules are inert while editing');
+
+    // Weather (2x2 at 1,3): drag one row down -> row 4.
+    const weather = page.locator('.layout-overlay[data-overlay-for="weather"]');
+    const box = await weather.boundingBox();
+    await page.mouse.move(box.x + 40, box.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 40, box.y + 40 + 112, { steps: 5 });
+    await page.mouse.up();
+    let p = await placement('weather');
+    assert(p[1] === 4, `after drag: ${p}`);
+
+    // Keys: Shift+Right grows to 3 wide, but Right then would overlap bookmarks (col 3) -> refused.
+    await weather.focus();
+    await page.keyboard.press('Shift+ArrowRight');
+    p = await placement('weather');
+    assert(p[2] === 2, `growing into bookmarks must be refused: ${p}`);
+    await page.keyboard.press('ArrowDown');
+    p = await placement('weather');
+    assert(p[1] === 5, `ArrowDown: ${p}`);
+    assert(await page.evaluate(() => document.activeElement.dataset.overlayFor === 'weather'), 'focus stays on the overlay');
+
+    assert(await page.evaluate(() => document.querySelector('app-todo').__marker === 1), 'moving a module must not remount the others');
+
+    await page.click('.layout-overlay[data-overlay-for="weather"] [data-layout="hide"]');
+    p = await placement('weather');
+    assert(p[4] === false, 'hidden');
+
+    await page.click('shell-bar [data-action="toggle-layout"]');
+    const after = await page.evaluate(() => ({
+      overlays: document.querySelectorAll('.layout-overlay').length,
+      inert: document.querySelector('app-todo').inert,
+    }));
+    await close();
+    assert(after.overlays === 0 && !after.inert, JSON.stringify(after));
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);
