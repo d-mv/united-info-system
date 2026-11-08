@@ -60,7 +60,9 @@ export class ShellBar extends HTMLElement {
   }
 
   toggleModule(id, enabled) {
-    this.configManager.setModules(setEnabled(this.configManager.getModules(), id, enabled));
+    const config = this.configManager.get();
+    const gridCols = (config.grid && config.grid.columns) || 12;
+    this.configManager.setModules(setEnabled(config.modules, id, enabled, gridCols));
   }
 
   disconnectedCallback() {

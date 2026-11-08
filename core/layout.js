@@ -43,14 +43,31 @@ export function nextFreeRow(modules) {
 }
 
 /**
- * Turn a module on or off. A module turned on where it would overlap others
- * moves to the first free row, at column 1.
+ * First free spot for `mod`'s size, scanning rows top to bottom and columns
+ * left to right. Returns { col, row, cols } (cols clamped to the grid width).
  */
-export function setEnabled(modules, id, enabled) {
+export function firstFit(modules, mod, gridCols) {
+  const cols = Math.min(mod.cols ?? 1, gridCols);
+  const rows = mod.rows ?? 1;
+  const limit = nextFreeRow(modules);
+  for (let row = 1; row <= limit; row++) {
+    for (let col = 1; col + cols - 1 <= gridCols; col++) {
+      if (!collides(modules, { id: mod.id, col, row, cols, rows })) return { col, row, cols };
+    }
+  }
+  return { col: 1, row: limit, cols };
+}
+
+/**
+ * Turn a module on or off. A module turned on goes to the first free spot
+ * that fits its size (top-left first), so modules fill the page instead of
+ * keeping a default position that may be far from the rest.
+ */
+export function setEnabled(modules, id, enabled, gridCols = 12) {
   const target = modules.find(m => m.id === id);
   if (!target) return modules;
   let next = { ...target, enabled };
-  if (enabled && collides(modules, next)) next = { ...next, col: 1, row: nextFreeRow(modules) };
+  if (enabled && target.enabled === false) next = { ...next, ...firstFit(modules, target, gridCols) };
   return modules.map(m => (m.id === id ? next : m));
 }
 

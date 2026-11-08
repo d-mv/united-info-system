@@ -38,13 +38,11 @@ test('place never produces overlaps (exhaustive small grid)', () => {
   }
 });
 
-test('setEnabled turns a module on, moving it below others if its spot is taken', () => {
-  const taken = [...mods.slice(0, 2), { id: 'off', enabled: false, col: 3, row: 2, cols: 2, rows: 2 }];
-  const out = setEnabled(taken, 'off', true).find(m => m.id === 'off');
-  assert.deepStrictEqual([out.enabled, out.col, out.row], [true, 1, 5]);
-  const free = setEnabled(mods, 'off', true).find(m => m.id === 'off');
-  assert.deepStrictEqual([free.col, free.row], [1, 3], 'free spot is kept');
+test('setEnabled turns a module on in the first free spot and off in place', () => {
+  const out = setEnabled(mods, 'off', true, 12).find(m => m.id === 'off');
+  assert.deepStrictEqual([out.enabled, out.col, out.row], [true, 7, 1], 'right of b, the first gap that fits 2x2');
   assert.strictEqual(setEnabled(mods, 'a', false).find(m => m.id === 'a').enabled, false);
+  assert.strictEqual(setEnabled(mods, 'a', true, 12).find(m => m.id === 'a').col, 1, 'already on: unchanged');
   assert.strictEqual(nextFreeRow(mods), 5);
 });
 
@@ -68,3 +66,24 @@ test('keyChange: arrows move by one cell, Shift+arrows resize', async () => {
   assert.deepStrictEqual(keyChange(mod, 'ArrowUp', true), { cols: 2, rows: 1 });
   assert.strictEqual(keyChange(mod, 'Enter', false), null);
 });
+
+test('turning a module on puts it in the first free spot that fits, from the top-left', async () => {
+  const { firstFit } = await import('../core/layout.js');
+  const empty = [
+    { id: 'clock', enabled: false, col: 1, row: 1, cols: 2, rows: 2 },
+    { id: 'todo', enabled: false, col: 7, row: 1, cols: 6, rows: 4 },
+  ];
+  let out = setEnabled(empty, 'todo', true, 12);
+  assert.deepStrictEqual(pick(out, 'todo'), [1, 1], 'empty page: top-left, not the default column 7');
+  out = setEnabled(out, 'clock', true, 12);
+  assert.deepStrictEqual(pick(out, 'clock'), [7, 1], 'next to the first one');
+
+  const full = [{ id: 'a', enabled: true, col: 1, row: 1, cols: 12, rows: 1 }, { id: 'b', enabled: false, col: 1, row: 1, cols: 2, rows: 2 }];
+  assert.deepStrictEqual(pick(setEnabled(full, 'b', true, 12), 'b'), [1, 2], 'below a full row');
+  assert.deepStrictEqual(firstFit([], { id: 'w', cols: 20, rows: 1 }, 12), { col: 1, row: 1, cols: 12 }, 'too wide: clamped to the grid');
+});
+
+function pick(list, id) {
+  const m = list.find(x => x.id === id);
+  return [m.col, m.row];
+}
