@@ -9,6 +9,7 @@ export const registry = {
   todo:      { type: 'app',    name: 'Todo',      load: () => import('../apps/todo/todo-app.js') },
   notes:     { type: 'app',    name: 'Notes',     load: () => import('../apps/notes/notes-app.js') },
   jira:      { type: 'app',    name: 'Jira',      load: () => import('../apps/jira/jira-app.js') },
+  currency:  { type: 'app',    name: 'Currency',  load: () => import('../apps/currency/currency-app.js') },
 };
 
 /** Display name for a module id. */

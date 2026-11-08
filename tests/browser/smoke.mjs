@@ -87,7 +87,7 @@ const checks = {
     const { page, errors, close } = await freshPage(browser);
     const mounted = await page.evaluate(() => [...document.querySelectorAll('#shell > .module')].map(m => m.tagName.toLowerCase()));
     await close();
-    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-notes,app-jira', `mounted: ${mounted}`);
+    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-notes,app-jira,app-currency', `mounted: ${mounted}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
@@ -121,6 +121,7 @@ const checks = {
       others: document.querySelectorAll('.module').length - 1,
       expanded: [...document.querySelectorAll('.module.expanded')].map(m => m.dataset.module),
       inert: [...document.querySelectorAll('.module')].filter(m => m.inert).length,
+      others: document.querySelectorAll('.module').length - 1,
       aria: document.querySelector('app-bookmarks [data-expand]').getAttribute('aria-expanded'),
     }));
     assert(open.expanded.join() === 'bookmarks' && open.inert === open.others && open.aria === 'true', JSON.stringify(open));
@@ -541,6 +542,59 @@ const checks = {
     notes = await stored();
     await close();
     assert(notes.length === 0, `after delete: ${JSON.stringify(notes)}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
+  async 'currency: converts live from (faked) ECB rates, swap, palette, offline keeps cache'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const rates = [['USD', 1.1555], ['EUR', 1], ['GBP', 0.83415], ['JPY', 176.77], ['CHF', 0.9143]]
+      .map(([quote, rate]) => ({ date: '2026-11-06', base: 'EUR', quote, rate }));
+    let online = true;
+    // page.route wins over freshPage's context-wide stub.
+    await page.route(/api\.frankfurter\.dev\/v2\/providers\/ecb\/rates/, r => (online
+      ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rates) })
+      : r.abort('internetdisconnected')));
+    await page.route(/api\.frankfurter\.dev\/v2\/currencies/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ iso_code: 'USD', name: 'US Dollar', type: 'currency' }]) }));
+    await page.reload();
+    await page.waitForSelector('app-currency .currency-amount');
+    const result = () => page.textContent('app-currency .currency-result__value');
+    assert(await result() === '1.16', `1 EUR -> USD: ${await result()}`);
+
+    await page.fill('app-currency .currency-amount', '1 234,5');
+    assert(await result() === '1,426.46', `typed: ${await result()}`);
+    assert(await page.evaluate(() => document.activeElement.matches('app-currency .currency-amount')), 'caret stays in the amount');
+    await page.fill('app-currency .currency-amount', '-3');
+    assert(await result() === '', 'negative shows nothing');
+    await page.fill('app-currency .currency-amount', '100');
+
+    await page.click('app-currency [data-action="swap"]');
+    assert(await page.inputValue('app-currency [data-field="from"]') === 'USD', 'swapped');
+    assert(await result() === '86.54', `100 USD -> EUR: ${await result()}`);
+    assert(await page.evaluate(() => document.activeElement.matches('app-currency [data-action="swap"]')), 'focus stays on swap');
+
+    await page.click('body', { position: { x: 5, y: 890 } });
+    await page.keyboard.press('Control+k');
+    await page.keyboard.type('50 gbp to jpy');
+    await page.click('command-palette .palette-option:has-text("50 GBP = 10,596 JPY")');
+    assert(await result() === '10,596', `palette set it: ${await result()}`);
+
+    await page.click('app-currency [data-expand]', { force: true });
+    await page.waitForTimeout(300);
+    const favs = await page.$$eval('app-currency .currency-fav__code', els => els.filter(e => e.offsetParent).map(e => e.textContent));
+    assert(favs.join() === 'USD,EUR,CHF,JPY', `favourites minus From (GBP): ${favs}`);
+    await page.keyboard.press('Escape');
+
+    // Offline with an old cache: rates still shown, marked "Update failed".
+    online = false;
+    await page.evaluate(() => {
+      const c = JSON.parse(localStorage.getItem('dashboard:app:currency:rates'));
+      localStorage.setItem('dashboard:app:currency:rates', JSON.stringify({ ...c, fetchedAt: c.fetchedAt - 7 * 3600 * 1000 }));
+    });
+    await page.reload();
+    await page.waitForSelector('app-currency .currency-warn');
+    const after = await result();
+    await close();
+    assert(after === '10,596', `cached result kept offline: ${after}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 

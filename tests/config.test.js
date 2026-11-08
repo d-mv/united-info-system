@@ -15,6 +15,7 @@ test('ConfigManager generates default config on cold boot', () => {
   assert.strictEqual(config.grid.cellSize, 100);
   assert.ok(Array.isArray(config.modules));
   assert.strictEqual(config.modules.length, DEFAULT_CONFIG.modules.length);
+  assert.ok(config.modules.some(m => m.id === 'currency' && m.enabled), 'currency on by default');
 
   // Assert stored in localStorage
   const rawStored = localStorage.getItem('dashboard:config');
@@ -110,10 +111,10 @@ test('v3 -> v4 keeps the saved module placement', () => {
 test('a current config gains modules added to the defaults later', async () => {
   const { registerModule } = await import('../core/registry.js');
   const { DEFAULT_CONFIG } = await import('../core/config.js');
+  const { nextFreeRow } = await import('../core/layout.js');
   const storage = makeStorage();
   const manager = new ConfigManager({ storage });
-  manager.get();
-  const bottom = Math.max(...DEFAULT_CONFIG.modules.map(m => m.row + m.rows));
+  const bottom = nextFreeRow(manager.get().modules);
   registerModule('later', { type: 'app', load: async () => ({}) });
   DEFAULT_CONFIG.modules.push({ id: 'later', enabled: true, cols: 2, rows: 2, col: 1, row: 1 });
   try {
