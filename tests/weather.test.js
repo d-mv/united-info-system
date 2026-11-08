@@ -48,6 +48,7 @@ test('WeatherWidget manifests setup dialog and handles secret configuration', as
   assert.ok(widget.innerHTML.includes('setup-dialog'));
   assert.ok(widget.innerHTML.includes('Open-Meteo'));
   assert.ok(widget.innerHTML.includes('OpenWeatherMap'));
+  widget.disconnectedCallback();
 });
 
 test('WeatherWidget fetches full current conditions and forecast from Open-Meteo API', async () => {
@@ -398,6 +399,73 @@ test('WeatherWidget drops a fetch that finishes after a newer one', async () => 
     await older;
     assert.strictEqual(readCache().query.city, 'Oslo', 'the older London response did not overwrite Oslo');
     assert.ok(widget.innerHTML.includes('Oslo'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Each weather request gets its own timeout', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'Porto', units: 'metric' });
+  widget.requestTimeoutMs = 60;
+  const later = (ms, value, signal) => new Promise((resolve, reject) => {
+    const id = setTimeout(() => resolve(value), ms);
+    signal.addEventListener('abort', () => { clearTimeout(id); reject(Object.assign(new Error('aborted'), { name: 'AbortError' })); });
+  });
+  const originalFetch = globalThis.fetch;
+  // Each call takes 40ms: fine per request, but 80ms in total.
+  globalThis.fetch = (url, { signal }) => later(40, url.includes('geocoding')
+    ? { ok: true, json: async () => ({ results: [{ latitude: 1, longitude: 2, name: 'Porto' }] }) }
+    : { ok: true, json: async () => ({ current: { time: '2026-08-04T12:00', temperature_2m: 10, weather_code: 0 } }) }, signal);
+  try {
+    await widget.fetchWeatherStaleWhileRevalidate();
+    assert.ok(readCache(), 'both requests finished within their own timeouts');
+
+    globalThis.fetch = (url, { signal }) => later(200, { ok: true, json: async () => ({}) }, signal);
+    await widget.fetchWeatherStaleWhileRevalidate();
+    assert.strictEqual(widget.status.reason, 'timeout');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('WeatherWidget skips the fetch on mount while the cached reading is fresh', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const query = { provider: 'openmeteo', city: 'Porto', units: 'metric' };
+  const reading = (age) => ({ temp: 15, condition: 'Clear', city: 'Porto', provider: 'openmeteo', fetchedAt: Date.now() - age });
+  const net = stubWeatherFetch();
+  try {
+    const fresh = makeWidget(WeatherWidget, query, { query, reading: reading(60 * 1000) });
+    fresh.widget.connectedCallback();
+    await settle();
+    assert.strictEqual(net.urls.length, 0, 'fresh cache: no request');
+    fresh.widget.disconnectedCallback();
+
+    const stale = makeWidget(WeatherWidget, query, { query, reading: reading(60 * 60 * 1000) });
+    stale.widget.connectedCallback();
+    await settle();
+    assert.ok(net.urls.length > 0, 'stale cache: revalidates');
+    stale.widget.disconnectedCallback();
+  } finally {
+    net.restore();
+  }
+});
+
+test('WeatherWidget refreshes a reading that went stale while open, without hammering on failure', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const query = { provider: 'openmeteo', city: 'Porto', units: 'metric' };
+  const { widget } = makeWidget(WeatherWidget, query, { query, reading: { temp: 15, condition: 'Clear', fetchedAt: Date.now() } });
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 500 }; };
+  try {
+    const now = Date.now();
+    widget.refreshIfStale(now + 60 * 1000);
+    assert.strictEqual(calls, 0, 'still fresh');
+    await widget.refreshIfStale(now + 20 * 60 * 1000);
+    assert.strictEqual(calls, 1, 'stale: refetched');
+    await widget.refreshIfStale(now + 21 * 60 * 1000);
+    assert.strictEqual(calls, 1, 'just failed: waits before trying again');
   } finally {
     globalThis.fetch = originalFetch;
   }

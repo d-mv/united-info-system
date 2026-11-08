@@ -21,6 +21,10 @@ function cacheMatches(entry, query) {
     && String(entry.query.city).toLowerCase() === query.city.toLowerCase();
 }
 
+// Refetch once the shown reading (or the last failed attempt) is this old.
+const REFRESH_MS = 15 * 60 * 1000;
+const REFRESH_CHECK_MS = 60 * 1000;
+
 // Adapter results as plain tagged data. Failure reasons:
 // 'not-found' | 'bad-key' | 'timeout' | 'http' | 'network'.
 const Ok = (value) => ({ _tag: 'Ok', value });
@@ -115,6 +119,9 @@ export class WeatherWidget extends HTMLElement {
     this.status = { kind: 'loading' };
     // Only the latest fetch may write the cache and status.
     this.requestSeq = 0;
+    this.requestTimeoutMs = 3000;
+    this.lastAttemptAt = 0;
+    this.refreshTimer = null;
     this.unsubscribe = null;
     this.settingsKey = null;
   }
@@ -127,13 +134,43 @@ export class WeatherWidget extends HTMLElement {
       this.unsubscribe = this.configManager.subscribe(() => this.onSettingsChange());
     }
     this.render();
-    this.fetchWeatherStaleWhileRevalidate();
+    this.refreshIfStale();
+    // A start page stays open for hours; keep the reading current.
+    this.refreshTimer = setInterval(() => this.refreshIfStale(), REFRESH_CHECK_MS);
   }
 
   disconnectedCallback() {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
+    }
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+
+  /** Stale-while-revalidate: fetch only when the shown reading or the last attempt is old. */
+  refreshIfStale(now = Date.now()) {
+    if (this.isSetupOpen) return undefined;
+    const query = this.getQuery();
+    if (query.needsKey) return undefined;
+    const reading = this.getCachedReading(query);
+    const last = Math.max(reading ? reading.fetchedAt || 0 : 0, this.lastAttemptAt);
+    if (now - last < REFRESH_MS) return undefined;
+    this.lastAttemptAt = now;
+    return this.fetchWeatherStaleWhileRevalidate();
+  }
+
+  /** fetch() with its own timeout, so each request gets the full budget. */
+  async fetchWithTimeout(url) {
+    if (typeof AbortController === 'undefined') return fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -564,9 +601,9 @@ export class WeatherWidget extends HTMLElement {
     }
   }
 
-  async fetchOpenMeteo(city, units = 'metric', signal) {
+  async fetchOpenMeteo(city, units = 'metric') {
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
-    const geoRes = await fetch(geoUrl, { signal });
+    const geoRes = await this.fetchWithTimeout(geoUrl);
     if (!geoRes.ok) return Err('http');
     const geoData = await geoRes.json();
     if (!geoData.results || geoData.results.length === 0) return Err('not-found');
@@ -580,7 +617,7 @@ export class WeatherWidget extends HTMLElement {
     const hourly = 'temperature_2m,weather_code,precipitation_probability';
     const daily = 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset';
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${current}&hourly=${hourly}&daily=${daily}&timezone=auto&forecast_days=7${tempUnitParam}${windUnitParam}${precipUnitParam}`;
-    const weatherRes = await fetch(weatherUrl, { signal });
+    const weatherRes = await this.fetchWithTimeout(weatherUrl);
     if (!weatherRes.ok) return Err('http');
 
     const weatherData = await weatherRes.json();
@@ -638,10 +675,10 @@ export class WeatherWidget extends HTMLElement {
     });
   }
 
-  async fetchOpenWeatherMap(city, apiKey, units = 'metric', signal) {
+  async fetchOpenWeatherMap(city, apiKey, units = 'metric') {
     const encCity = encodeURIComponent(city);
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encCity}&units=${units}&appid=${apiKey}`;
-    const response = await fetch(url, { signal });
+    const response = await this.fetchWithTimeout(url);
     if (!response.ok) {
       if (response.status === 401) return Err('bad-key');
       if (response.status === 404) return Err('not-found');
@@ -651,7 +688,7 @@ export class WeatherWidget extends HTMLElement {
     const data = await response.json();
 
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${encCity}&units=${units}&appid=${apiKey}`;
-    const forecastRes = await fetch(forecastUrl, { signal });
+    const forecastRes = await this.fetchWithTimeout(forecastUrl);
     const forecastData = forecastRes && forecastRes.ok ? await forecastRes.json() : null;
     const forecast = forecastData ? this.aggregateOwmForecast(forecastData, units) : [];
     const hourly = forecastData ? this.aggregateOwmHourly(forecastData) : [];
@@ -735,19 +772,15 @@ export class WeatherWidget extends HTMLElement {
     if (query.needsKey) return;
 
     const seq = ++this.requestSeq;
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
-    const signal = controller ? controller.signal : undefined;
+    this.lastAttemptAt = Math.max(this.lastAttemptAt, Date.now());
 
     let result;
     try {
       result = provider === 'openmeteo'
-        ? await this.fetchOpenMeteo(city, units, signal)
-        : await this.fetchOpenWeatherMap(city, apiKey, units, signal);
+        ? await this.fetchOpenMeteo(city, units)
+        : await this.fetchOpenWeatherMap(city, apiKey, units);
     } catch (err) {
       result = Err(err && err.name === 'AbortError' ? 'timeout' : 'network');
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
     }
 
     // A newer fetch (settings change, Retry) owns the cache and status now.
