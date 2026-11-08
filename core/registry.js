@@ -7,6 +7,7 @@ export const registry = {
   weather:   { type: 'widget', name: 'Weather',   load: () => import('../widgets/weather/weather-widget.js') },
   bookmarks: { type: 'app',    name: 'Bookmarks', load: () => import('../apps/bookmarks/bookmarks-app.js') },
   todo:      { type: 'app',    name: 'Todo',      load: () => import('../apps/todo/todo-app.js') },
+  calendar:  { type: 'app',    name: 'Calendar',  load: () => import('../apps/calendar/calendar-app.js') },
 };
 
 /** Display name for a module id. */

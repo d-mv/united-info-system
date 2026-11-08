@@ -40,6 +40,10 @@
     clock-app.js            # defines <app-clock>
     clock-logic.js          # pure alarm/timer rules (no DOM)
     clock-notify.js         # Notification API wrapper
+  calendar/
+    calendar-app.js         # defines <app-calendar>
+    calendar-logic.js       # pure dates, recurrence expansion, reminders (no DOM)
+    ics.js                  # .ics (RFC 5545) parser, Intl-based time zone conversion
 /widgets/
   weather/
     weather-widget.js       # defines <widget-weather>
@@ -101,6 +105,7 @@ Default placements in the 12-column layout (`DEFAULT_CONFIG.modules` in `core/co
 - `weather`: `2×2` (`col: 1, row: 3`)
 - `bookmarks`: `4×4` (`col: 3, row: 1`)
 - `todo`: `6×4` (`col: 7, row: 1`)
+- `calendar`: `4×4` (`col: 5, row: 5`)
 
 ---
 
@@ -171,6 +176,8 @@ dashboard:weather:cache     # { query, reading }: last-known reading and the set
 dashboard:app:todo          # todo items: { id, text, done, active }
 dashboard:app:todo:view     # { showCompleted }
 dashboard:app:bookmarks     # bookmark list
+dashboard:app:calendar      # events (local wall-clock times; imported ones keep source, uid, rrule, exdates)
+dashboard:app:calendar:fired # { 'eventId@YYYY-MM-DD': { at, title, when, dismissed } }: reminders rung, shared across tabs
 ```
 
 `core/storage.js` wraps `get`/`set`/`remove` with the namespace prefix and JSON parse/stringify, so modules never touch `localStorage` directly. `subscribe(key, cb)` fires on same-tab writes and on `storage` events from other tabs; modules subscribe to their key and re-render, which is how cross-tab sync works.
