@@ -8,7 +8,7 @@
 
 - **Clock** (`<app-clock>`): current time, a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs. The Alarm row shows time left until it rings. When one goes off, the clock shows a Dismiss banner, beeps for up to a minute and sends a browser notification. Sound needs one click on the page first (browser autoplay rules); notification permission is asked the first time you set an alarm or start a timer.
 - **Weather** (`<widget-weather>`): current conditions and forecast from Open-Meteo (default, free, no API key) or OpenWeatherMap (needs an API key). The setup dialog picks provider, city, units and key. The last reading is cached and shown immediately on load, and refreshed once it is 15 minutes old (also while the page stays open); if a refresh fails, it stays visible marked "Update failed". Failures say why (city not found, API key rejected, unavailable).
-- **Todo** (`<app-todo>`): add and complete tasks (there is no delete yet). Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
+- **Todo** (`<app-todo>`): add, edit, delete and complete tasks, with an optional due date (overdue dates show in the accent color). Reorder by dragging a row, or focus its grip (⋮⋮) and press ↑/↓. Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
 - **Bookmarks** (`<app-bookmarks>`): add, edit and delete links.
 
 ## Shell
@@ -51,7 +51,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:config` | Config version, grid settings, enabled modules and their placement, weather settings (provider, city, units, API key). |
 | `dashboard:clock` | Daily alarm (time, on/off, last day it rang), countdown timer (end time while running, remaining time while paused) and the current ringing state. |
 | `dashboard:weather:cache` | Last weather reading and the provider, city and units it was fetched for (shown only while those match the settings). |
-| `dashboard:app:todo` | Tasks with done and in-progress flags. |
+| `dashboard:app:todo` | Tasks in display order, with done and in-progress flags and an optional `due` date (`YYYY-MM-DD`). |
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links. |
 

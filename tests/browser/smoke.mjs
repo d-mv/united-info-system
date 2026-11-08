@@ -167,6 +167,40 @@ const checks = {
     }
   },
 
+  async 'todo: edit, keyboard reorder, drag reorder, delete'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const order = () => page.evaluate(() => [...document.querySelectorAll('app-todo .todo-text')].map(l => l.textContent));
+    const first = (await order())[0];
+
+    await page.click('app-todo [data-action="edit"]', { force: true });
+    await page.fill('app-todo .todo-edit-text', 'Edited task');
+    await page.fill('app-todo .todo-edit-date', '2000-01-01');
+    await page.click('app-todo .todo-edit-form button[type="submit"]');
+    let names = await order();
+    assert(names[0] === 'Edited task', `after edit: ${names}`);
+    assert(await page.isVisible('app-todo .todo-due--overdue'), 'overdue badge shown');
+    assert(await page.evaluate(() => document.activeElement.matches('app-todo [data-action="edit"]')), 'focus back on Edit');
+
+    await page.focus('app-todo [data-action="reorder"]');
+    await page.keyboard.press('ArrowDown');
+    names = await order();
+    assert(names[1] === 'Edited task', `after ArrowDown: ${names}`);
+    assert(await page.evaluate(() => document.activeElement.matches('app-todo [data-action="reorder"]')), 'focus stays on grip');
+
+    const rows = page.locator('app-todo .todo-item');
+    await rows.nth(2).dragTo(rows.nth(0));
+    names = await order();
+    assert(names[0] !== first || names.length < 3, `drag did nothing: ${names}`);
+
+    const before = names.length;
+    await page.click('app-todo [data-action="edit"]', { force: true });
+    await page.click('app-todo .todo-edit-form [data-action="delete"]');
+    names = await order();
+    await close();
+    assert(names.length === before - 1, `after delete: ${names}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);

@@ -122,3 +122,68 @@ test('TodoApp re-renders when tasks change, including from another tab', async (
   assert.ok(!app.innerHTML.includes('Open task'));
   app.disconnectedCallback();
 });
+
+test('TodoApp deletes a task', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { app, read } = makeApp(TodoApp, [
+    { id: 'a', text: 'A', done: false },
+    { id: 'b', text: 'B', done: false },
+  ]);
+  app.deleteTodo('a');
+  assert.deepStrictEqual(read().map(t => t.id), ['b']);
+});
+
+test('TodoApp edits text and due date; blank text keeps the old text', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { app, read } = makeApp(TodoApp, [{ id: 'a', text: 'Old', done: false }]);
+  app.updateTodo('a', { text: '  New  ', due: '2026-11-20' });
+  assert.strictEqual(read()[0].text, 'New');
+  assert.strictEqual(read()[0].due, '2026-11-20');
+
+  app.updateTodo('a', { text: '   ', due: '' });
+  assert.strictEqual(read()[0].text, 'New', 'blank text is ignored');
+  assert.strictEqual(read()[0].due, null, 'empty date clears the due date');
+});
+
+test('TodoApp moves a task and keeps stored order on screen', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { app, read } = makeApp(TodoApp, [
+    { id: 'a', text: 'Alpha', done: false },
+    { id: 'b', text: 'Beta', done: false },
+  ]);
+  app.connectedCallback();
+  app.moveTodo('b', 'a');
+  assert.deepStrictEqual(read().map(t => t.id), ['b', 'a']);
+  assert.ok(app.innerHTML.indexOf('Beta') < app.innerHTML.indexOf('Alpha'));
+  app.disconnectedCallback();
+});
+
+test('TodoApp shows due dates with overdue/today markers', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { isoDay } = await import('../apps/todo/todo-logic.js');
+  const today = isoDay(new Date());
+  const { app } = makeApp(TodoApp, [
+    { id: 'a', text: 'Late', done: false, due: '2000-01-01' },
+    { id: 'b', text: 'Now', done: false, due: today },
+    { id: 'c', text: 'Whenever', done: false },
+  ]);
+  app.connectedCallback();
+  assert.ok(app.innerHTML.includes('todo-due--overdue'));
+  assert.ok(app.innerHTML.includes('todo-due--today'));
+  assert.strictEqual((app.innerHTML.match(/class="todo-due /g) || []).length, 2, 'no badge without a due date');
+  app.disconnectedCallback();
+});
+
+test('TodoApp keeps an open edit form when tasks change elsewhere', async () => {
+  const { TodoApp } = await import('../apps/todo/todo-app.js');
+  const { app } = makeApp(TodoApp, [{ id: 'a', text: 'A', done: false }]);
+  app.connectedCallback();
+  app.startEdit('a');
+  assert.ok(app.innerHTML.includes('class="todo-edit-form"'));
+  writeFromOtherTab('app:todo', [{ id: 'a', text: 'A', done: false }, { id: 'z', text: 'Other', done: false }]);
+  assert.ok(app.innerHTML.includes('class="todo-edit-form"'), 'form survives the cross-tab write');
+
+  writeFromOtherTab('app:todo', [{ id: 'z', text: 'Other', done: false }]);
+  assert.ok(!app.innerHTML.includes('class="todo-edit-form"'), 'editing a task deleted elsewhere closes the form');
+  app.disconnectedCallback();
+});
