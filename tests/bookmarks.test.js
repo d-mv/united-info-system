@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
+import { installBrowserGlobals, makeStorage, writeFromOtherTab } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
 
@@ -71,6 +71,44 @@ test('BookmarksApp toggles add and edit forms during rendering', async () => {
   app.isAdding = false;
   app.editingId = 'b1';
   app.render();
-  assert.ok(app.innerHTML.includes('edit-bookmark-form'));
+  assert.ok(app.innerHTML.includes('<form class="edit-bookmark-form"'));
   assert.ok(app.innerHTML.includes('value="Test Bookmark"'));
+});
+
+test('BookmarksApp keeps an open add dialog when another tab writes bookmarks', async () => {
+  const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
+  const app = new BookmarksApp();
+  app.storage = makeStorage({ 'app:bookmarks': [{ id: 'b1', title: 'One', url: 'https://one.test' }] });
+  app.connectedCallback();
+  app.isAdding = true;
+  app.render();
+  const withDialog = app.innerHTML;
+
+  writeFromOtherTab('app:bookmarks', [{ id: 'b2', title: 'Two', url: 'https://two.test' }]);
+  assert.strictEqual(app.innerHTML, withDialog, 'the dialog (and what is typed in it) is not rebuilt');
+
+  app.closeAddDialog();
+  assert.ok(app.innerHTML.includes('Two'), 'the change shows once the dialog closes');
+  app.disconnectedCallback();
+});
+
+test('BookmarksApp keeps an inline edit, and ends it if the bookmark is deleted elsewhere', async () => {
+  const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
+  const app = new BookmarksApp();
+  const one = { id: 'b1', title: 'One', url: 'https://one.test' };
+  const two = { id: 'b2', title: 'Two', url: 'https://two.test' };
+  app.storage = makeStorage({ 'app:bookmarks': [one, two] });
+  app.connectedCallback();
+  app.editingId = 'b1';
+  app.render();
+  const editing = app.innerHTML;
+
+  writeFromOtherTab('app:bookmarks', [one, { ...two, title: 'Two renamed' }]);
+  assert.strictEqual(app.innerHTML, editing, 'the edit form is not reset');
+
+  writeFromOtherTab('app:bookmarks', [two]);
+  assert.strictEqual(app.editingId, null);
+  assert.ok(!app.innerHTML.includes('<form class="edit-bookmark-form"'), 'back to the list');
+  assert.ok(app.innerHTML.includes('Two'));
+  app.disconnectedCallback();
 });

@@ -30,8 +30,18 @@ export class BookmarksApp extends HTMLElement {
   connectedCallback() {
     this.render();
     if (this.storage && this.storage.subscribe) {
-      this.unsubscribe = this.storage.subscribe('app:bookmarks', () => this.render());
+      this.unsubscribe = this.storage.subscribe('app:bookmarks', () => this.onStoredChange());
     }
+  }
+
+  // Bookmarks changed (here or in another tab). Don't rebuild an open form and
+  // lose what is typed in it; every way of closing a form re-renders.
+  onStoredChange() {
+    if (this.editingId && !this.getBookmarks().some(item => item.id === this.editingId)) {
+      this.editingId = null;
+    }
+    if (this.isAdding || this.editingId) return;
+    this.render();
   }
 
   disconnectedCallback() {
