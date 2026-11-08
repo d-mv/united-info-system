@@ -426,17 +426,22 @@ export class WeatherWidget extends HTMLElement {
     return directions[Math.round(deg / 45) % 8];
   }
 
+  // Compares time of day only: the cache holds today's sunrise/sunset, and
+  // hourly entries run into tomorrow.
   isDaytime(time, sunrise, sunset) {
-    const t = new Date(time).getTime();
+    const minutesOfDay = (value) => {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? NaN : d.getHours() * 60 + d.getMinutes();
+    };
+    const t = minutesOfDay(time);
     if (sunrise && sunset) {
-      const sr = new Date(sunrise).getTime();
-      const ss = new Date(sunset).getTime();
+      const sr = minutesOfDay(sunrise);
+      const ss = minutesOfDay(sunset);
       if (!Number.isNaN(t) && !Number.isNaN(sr) && !Number.isNaN(ss)) {
         return t >= sr && t < ss;
       }
     }
-    const hour = new Date(t).getHours();
-    return hour >= 6 && hour < 19;
+    return t >= 6 * 60 && t < 19 * 60;
   }
 
   weatherIconClass(condition, time, sunrise, sunset) {

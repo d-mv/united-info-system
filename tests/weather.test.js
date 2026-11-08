@@ -342,3 +342,14 @@ test('OpenWeatherMap times are converted to the city local clock', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('isDaytime compares the time of day, so tomorrow morning is day', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const w = new WeatherWidget();
+  const sunrise = '2026-08-04T06:10';
+  const sunset = '2026-08-04T20:41';
+  assert.strictEqual(w.isDaytime('2026-08-04T12:00', sunrise, sunset), true);
+  assert.strictEqual(w.isDaytime('2026-08-04T22:00', sunrise, sunset), false);
+  assert.strictEqual(w.isDaytime('2026-08-05T08:00', sunrise, sunset), true, 'next morning');
+  assert.strictEqual(w.isDaytime('2026-08-05T03:00', sunrise, sunset), false, 'next night');
+});
