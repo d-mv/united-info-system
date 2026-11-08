@@ -50,7 +50,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 |---|---|
 | `dashboard:config` | Config version, grid settings, enabled modules and their placement, weather settings (provider, city, units, API key). |
 | `dashboard:clock` | Daily alarm (time, on/off, last day it rang), countdown timer (end time while running, remaining time while paused) and the current ringing state. |
-| `dashboard:weather:cache` | Last weather reading. |
+| `dashboard:weather:cache` | Last weather reading and the provider, city and units it was fetched for (shown only while those match the settings). |
 | `dashboard:app:todo` | Tasks with done and in-progress flags. |
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links. |

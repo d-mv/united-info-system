@@ -1,6 +1,25 @@
-import { configManager } from '../../core/config.js';
+import { configManager, DEFAULT_CONFIG } from '../../core/config.js';
 import { storage } from '../../core/storage.js';
 import { escapeHtml } from '../../core/html.js';
+
+const DEFAULT_WEATHER = DEFAULT_CONFIG.secrets.weather;
+
+/** Weather settings with every default applied, in one place. */
+export function resolveWeatherQuery(secrets = {}) {
+  const provider = secrets.provider === 'openweathermap' ? 'openweathermap' : 'openmeteo';
+  const city = String(secrets.city || '').trim() || DEFAULT_WEATHER.city;
+  const units = secrets.units === 'imperial' ? 'imperial' : 'metric';
+  const apiKey = secrets.apiKey || '';
+  return { provider, city, units, apiKey, needsKey: provider === 'openweathermap' && !apiKey };
+}
+
+// The cache is stamped with the query it answers: { query: {provider, city, units}, reading }.
+function cacheMatches(entry, query) {
+  if (!entry || !entry.query || !entry.reading) return false;
+  return entry.query.provider === query.provider
+    && entry.query.units === query.units
+    && String(entry.query.city).toLowerCase() === query.city.toLowerCase();
+}
 
 export function mapWmoCodeToCondition(code) {
   if (code === 0) return 'Clear';
@@ -98,12 +117,19 @@ export class WeatherWidget extends HTMLElement {
     return this.configManager.getSecret('weather') || {};
   }
 
+  getQuery() {
+    return resolveWeatherQuery(this.getSecrets());
+  }
+
+  /** The cached reading, only if it answers the current settings. */
+  getCachedReading(query) {
+    const entry = this.storage.get('weather:cache', null);
+    return cacheMatches(entry, query) ? entry.reading : null;
+  }
+
   render() {
-    const secrets = this.getSecrets();
-    const provider = secrets.provider || 'openmeteo';
-    const cache = this.storage.get('weather:cache') || null;
-    const units = secrets.units || 'metric';
-    const needsKey = provider === 'openweathermap' && !secrets.apiKey;
+    const query = this.getQuery();
+    const cache = this.getCachedReading(query);
 
     this.innerHTML = `
       <style>
@@ -235,8 +261,8 @@ export class WeatherWidget extends HTMLElement {
           <button class="zoom-button" type="button" aria-label="Expand Weather"><span class="icon icon--zoom" aria-hidden="true"></span></button>
         </div>
       </div>
-      ${cache ? this.renderReadout(cache, units) : this.renderState(needsKey)}
-      ${this.isSetupOpen ? this.renderSetupDialog(secrets) : ''}
+      ${cache ? this.renderReadout(cache, query.units) : this.renderState(query.needsKey)}
+      ${this.isSetupOpen ? this.renderSetupDialog(query) : ''}
     `;
 
     this.bindEvents();
@@ -412,8 +438,8 @@ export class WeatherWidget extends HTMLElement {
     if (setupBtn && setupBtn.focus) setupBtn.focus();
   }
 
-  renderSetupDialog(secrets) {
-    const currentProvider = secrets.provider || 'openmeteo';
+  renderSetupDialog(query) {
+    const currentProvider = query.provider;
     return `
       <dialog class="dialog setup-dialog" aria-labelledby="weather-setup-title">
         <div class="dialog__head">
@@ -430,11 +456,11 @@ export class WeatherWidget extends HTMLElement {
           </label>
           <label class="field">
             <span class="label">City</span>
-            <input type="text" id="weather-city" class="input" autofocus placeholder="London" value="${escapeHtml(secrets.city || 'London')}">
+            <input type="text" id="weather-city" class="input" autofocus placeholder="${escapeHtml(DEFAULT_WEATHER.city)}" value="${escapeHtml(query.city)}">
           </label>
           <label class="field">
             <span class="label">API key</span>
-            <input type="password" id="weather-apikey" class="input" autocomplete="off" value="${escapeHtml(secrets.apiKey || '')}">
+            <input type="password" id="weather-apikey" class="input" autocomplete="off" value="${escapeHtml(query.apiKey)}">
             <p class="hint">Only needed for OpenWeatherMap. Stored in this browser only.</p>
           </label>
           <div class="form-actions">
@@ -451,9 +477,10 @@ export class WeatherWidget extends HTMLElement {
     const cityInput = this.querySelector('#weather-city');
     const keyInput = this.querySelector('#weather-apikey');
 
-    const provider = providerInput ? providerInput.value : 'openmeteo';
-    const city = cityInput ? cityInput.value.trim() : 'London';
-    const apiKey = keyInput ? keyInput.value.trim() : '';
+    const current = this.getQuery();
+    const provider = providerInput ? providerInput.value : current.provider;
+    const city = cityInput ? cityInput.value.trim() : current.city;
+    const apiKey = keyInput ? keyInput.value.trim() : current.apiKey;
 
     const before = this.settingsKey;
     // A real change is picked up by onSettingsChange, which refetches.
@@ -652,12 +679,10 @@ export class WeatherWidget extends HTMLElement {
   }
 
   async fetchWeatherStaleWhileRevalidate(force = false) {
-    const secrets = this.getSecrets();
-    const provider = secrets.provider || 'openmeteo';
-    const city = secrets.city || 'London';
-    const units = secrets.units || 'metric';
+    const query = this.getQuery();
+    const { provider, city, units, apiKey } = query;
 
-    if (provider === 'openweathermap' && !secrets.apiKey) return;
+    if (query.needsKey) return;
 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
@@ -667,13 +692,13 @@ export class WeatherWidget extends HTMLElement {
       if (provider === 'openmeteo') {
         weatherRecord = await this.fetchOpenMeteo(city, units, controller ? controller.signal : undefined);
       } else {
-        weatherRecord = await this.fetchOpenWeatherMap(city, secrets.apiKey, units, controller ? controller.signal : undefined);
+        weatherRecord = await this.fetchOpenWeatherMap(city, apiKey, units, controller ? controller.signal : undefined);
       }
 
       if (timeoutId) clearTimeout(timeoutId);
 
       if (weatherRecord) {
-        this.storage.set('weather:cache', weatherRecord);
+        this.storage.set('weather:cache', { query: { provider, city, units }, reading: weatherRecord });
         this.fetchState = 'ok';
       } else {
         this.fetchState = 'error';

@@ -23,7 +23,7 @@ test('WeatherWidget manifests setup dialog and handles secret configuration', as
   const { widget } = makeWidget(
     WeatherWidget,
     { provider: 'openmeteo', apiKey: '', city: 'London', units: 'metric' },
-    { temp: 15, condition: 'Sunny', city: 'London', provider: 'openmeteo', fetchedAt: Date.now() }
+    { query: { provider: 'openmeteo', city: 'London', units: 'metric' }, reading: { temp: 15, condition: 'Sunny', city: 'London', provider: 'openmeteo', fetchedAt: Date.now() } }
   );
   const listeners = new Map();
   widget.querySelector = (selector) => {
@@ -109,7 +109,9 @@ test('WeatherWidget fetches full current conditions and forecast from Open-Meteo
 
   try {
     await widget.fetchWeatherStaleWhileRevalidate();
-    const storedCache = readCache();
+    const entry = readCache();
+    assert.deepStrictEqual(entry.query, { provider: 'openmeteo', city: 'London', units: 'metric' });
+    const storedCache = entry.reading;
     assert.ok(storedCache);
     assert.strictEqual(storedCache.temp, 18);
     assert.strictEqual(storedCache.condition, 'Clear');
@@ -178,7 +180,9 @@ test('WeatherWidget fetches full current conditions and forecast from OpenWeathe
 
   try {
     await widget.fetchWeatherStaleWhileRevalidate();
-    const storedCache = readCache();
+    const entry = readCache();
+    assert.deepStrictEqual(entry.query, { provider: 'openweathermap', city: 'Paris', units: 'metric' });
+    const storedCache = entry.reading;
     assert.ok(storedCache);
     assert.strictEqual(storedCache.temp, 22);
     assert.strictEqual(storedCache.condition, 'Clouds');
@@ -257,4 +261,44 @@ test('WeatherWidget fetches once per setup save', async () => {
     net.restore();
     widget.disconnectedCallback();
   }
+});
+
+test('resolveWeatherQuery fills defaults from the config in one place', async () => {
+  const { resolveWeatherQuery } = await import('../widgets/weather/weather-widget.js');
+  const { DEFAULT_CONFIG } = await import('../core/config.js');
+  assert.deepStrictEqual(resolveWeatherQuery({}), {
+    provider: 'openmeteo', city: DEFAULT_CONFIG.secrets.weather.city, units: 'metric', apiKey: '', needsKey: false
+  });
+  assert.strictEqual(resolveWeatherQuery({ city: '   ' }).city, DEFAULT_CONFIG.secrets.weather.city, 'blank city falls back');
+  assert.strictEqual(resolveWeatherQuery({ provider: 'openweathermap' }).needsKey, true);
+  assert.strictEqual(resolveWeatherQuery({ provider: 'openweathermap', apiKey: 'k' }).needsKey, false);
+});
+
+test('WeatherWidget does not show a cached reading for other settings', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const reading = { temp: 15, condition: 'Clear', city: 'Porto', provider: 'openmeteo', fetchedAt: Date.now() };
+  const other = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'Oslo', units: 'metric' },
+    { query: { provider: 'openmeteo', city: 'Porto', units: 'metric' }, reading });
+  other.widget.render();
+  assert.ok(!other.widget.innerHTML.includes('Porto'), 'a reading for another city is not shown');
+  assert.ok(other.widget.innerHTML.includes('Loading'));
+
+  const legacy = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'Porto', units: 'metric' }, reading);
+  legacy.widget.render();
+  assert.ok(!legacy.widget.innerHTML.includes('15°'), 'a pre-envelope cache is ignored');
+
+  const same = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'porto', units: 'metric' },
+    { query: { provider: 'openmeteo', city: 'Porto', units: 'metric' }, reading });
+  same.widget.render();
+  assert.ok(same.widget.innerHTML.includes('15°'), 'city match ignores case');
+});
+
+test('WeatherWidget setup dialog prefills the configured default city', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { DEFAULT_CONFIG } = await import('../core/config.js');
+  const { widget } = makeWidget(WeatherWidget, { provider: 'openmeteo', units: 'metric' });
+  widget.configManager.update({ secrets: { weather: { provider: 'openmeteo', units: 'metric' } } });
+  widget.openSetup();
+  assert.ok(widget.innerHTML.includes(`value="${DEFAULT_CONFIG.secrets.weather.city}"`));
+  assert.ok(!widget.innerHTML.includes('London'));
 });

@@ -185,7 +185,7 @@ export const registry = {
 ```
 dashboard:config            # auto-generated config: version, grid, modules (enabled + placement), secrets
 dashboard:clock             # alarm, countdown timer, ringing state
-dashboard:weather:cache     # last-known weather reading
+dashboard:weather:cache     # { query, reading }: last-known reading and the settings it was fetched for
 dashboard:app:todo          # todo items: { id, text, done, active }
 dashboard:app:todo:view     # { showCompleted }
 dashboard:app:bookmarks     # bookmark list
@@ -258,13 +258,12 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 
 1. **Provider Selection:** Supports `openmeteo` (default; free, no API key required) and `openweathermap` (requires API key).
 2. **Open-Meteo Flow:** Resolves city name to coordinates via Geocoding API (`geocoding-api.open-meteo.com/v1/search`), then queries forecast (`api.open-meteo.com/v1/forecast`) and maps WMO codes to human-readable weather conditions via `mapWmoCodeToCondition`.
-3. On mount, render last-known cached reading from `dashboard:weather:cache` immediately (stale-while-revalidate).
+3. On mount, render the last-known reading from `dashboard:weather:cache` immediately (stale-while-revalidate). The cache is stored as `{ query: {provider, city, units}, reading }` and is shown only when its query matches the current settings (city compared case-insensitively); otherwise the widget shows Loading until the new fetch lands. `resolveWeatherQuery()` applies every settings default in one place (city default comes from `DEFAULT_CONFIG`).
 4. Fetch in the background with a short timeout (~3s) using `AbortController`.
 5. On success: update cache + DOM.
 6. On failure/timeout: leave the stale reading visible with its "As of [time]" note plus "Update failed" — never a blocking spinner. With no cache at all, show "Weather unavailable" and a Retry button. OpenWeatherMap without a key shows a prompt to open setup.
 7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`. The setup dialog edits provider, city and API key; units come from config (default `metric`) and have no selector yet.
 
-**Known gaps:** the cache is a single reading not keyed by provider/city/units, so it can briefly show data for the previous city after a change. The default city is `Porto` in config but the dialog and fetch fall back to `London` when unset.
 
 ---
 
