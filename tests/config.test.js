@@ -14,7 +14,7 @@ test('ConfigManager generates default config on cold boot', () => {
   assert.strictEqual(config.grid.columns, 12);
   assert.strictEqual(config.grid.cellSize, 100);
   assert.ok(Array.isArray(config.modules));
-  assert.strictEqual(config.modules.length, 4);
+  assert.strictEqual(config.modules.length, 5);
 
   // Assert stored in localStorage
   const rawStored = localStorage.getItem('dashboard:config');
@@ -113,12 +113,13 @@ test('a current config gains modules added to the defaults later', async () => {
   const storage = makeStorage();
   const manager = new ConfigManager({ storage });
   manager.get();
+  const bottom = Math.max(...DEFAULT_CONFIG.modules.map(m => m.row + m.rows));
   registerModule('later', { type: 'app', load: async () => ({}) });
   DEFAULT_CONFIG.modules.push({ id: 'later', enabled: true, cols: 2, rows: 2, col: 1, row: 1 });
   try {
     const later = manager.get().modules.find(m => m.id === 'later');
     assert.ok(later, 'appended');
-    assert.strictEqual(later.row, 5, 'below everything instead of on top of the clock');
+    assert.strictEqual(later.row, bottom, 'below everything instead of on top of the clock');
   } finally {
     DEFAULT_CONFIG.modules.pop();
   }

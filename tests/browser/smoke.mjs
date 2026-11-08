@@ -87,7 +87,7 @@ const checks = {
     const { page, errors, close } = await freshPage(browser);
     const mounted = await page.evaluate(() => [...document.querySelectorAll('#shell > .module')].map(m => m.tagName.toLowerCase()));
     await close();
-    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo', `mounted: ${mounted}`);
+    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo,app-jira', `mounted: ${mounted}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
@@ -122,7 +122,7 @@ const checks = {
       inert: [...document.querySelectorAll('.module')].filter(m => m.inert).length,
       aria: document.querySelector('app-bookmarks [data-expand]').getAttribute('aria-expanded'),
     }));
-    assert(open.expanded.join() === 'bookmarks' && open.inert === 3 && open.aria === 'true', JSON.stringify(open));
+    assert(open.expanded.join() === 'bookmarks' && open.inert === 4 && open.aria === 'true', JSON.stringify(open));
     for (let i = 0; i < 20; i++) {
       await page.keyboard.press('Tab');
       const where = await page.evaluate(() => document.activeElement.closest('.module')?.dataset.module ?? null);
@@ -401,6 +401,48 @@ const checks = {
     await page.waitForSelector('app-todo');
     assert(/#page=home$/.test(page.url()), `url: ${page.url()}`);
     await close();
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
+  async 'jira: setup looks up cloudId, 401 explained, issues link to the site'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const CLOUD = '1324a887-45db-1bf4-1e99-ef0ff456d421';
+    const cors = { 'access-control-allow-origin': BASE, 'access-control-allow-headers': 'authorization, accept' };
+    let mode = 401;
+    let auth = null;
+    await page.route('https://acme.atlassian.net/_edge/tenant_info', r => r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ cloudId: CLOUD }) }));
+    await page.route(/^https:\/\/api\.atlassian\.com\/ex\/jira\//, (r) => {
+      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+      auth = r.request().headers().authorization;
+      const body = mode === 200
+        ? { issues: [{ key: 'ABC-1', fields: { summary: 'Fix <b>login</b>', status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, assignee: null, updated: new Date().toISOString() } }] }
+        : { errorMessages: [] };
+      return r.fulfill({ status: mode, headers: cors, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+
+    await page.click('app-jira #jira-setup-button', { force: true });
+    await page.fill('app-jira #jira-site', 'https://acme.atlassian.net/jira/your-work');
+    await page.fill('app-jira #jira-email', 'me@acme.io');
+    await page.fill('app-jira #jira-token', 'smoke-token');
+    await page.click('app-jira #jira-save');
+    await page.waitForSelector('app-jira .jira-state:has-text("API token rejected")');
+    assert(auth === `Basic ${Buffer.from('me@acme.io:smoke-token').toString('base64')}`, 'Basic auth header sent');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('dashboard:config')).secrets.jira);
+    assert(saved.site === 'acme.atlassian.net' && saved.cloudId === CLOUD, `saved: ${saved.site} ${saved.cloudId}`);
+
+    mode = 200;
+    await page.click('app-jira #jira-refresh-button', { force: true });
+    await page.waitForSelector('app-jira a.jira-key');
+    const link = await page.$eval('app-jira a.jira-key', a => ({ href: a.href, text: a.textContent, summary: a.closest('li').querySelector('.jira-summary').textContent }));
+    assert(link.href === 'https://acme.atlassian.net/browse/ABC-1' && link.text === 'ABC-1', `link: ${JSON.stringify(link)}`);
+    assert(link.summary === 'Fix <b>login</b>', `summary shown as text: ${link.summary}`);
+
+    mode = 401;
+    await page.click('app-jira #jira-refresh-button', { force: true });
+    await page.waitForSelector('app-jira .jira-foot .warn');
+    const foot = await page.textContent('app-jira .jira-foot');
+    await close();
+    assert(/Update failed/.test(foot) && /API token rejected/.test(foot), `footer: ${foot}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
