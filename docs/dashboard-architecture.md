@@ -68,21 +68,11 @@ No `src/`, no `dist/`. What's on disk is what runs.
 
 Given the native-APIs-first preference and the desire to avoid a framework runtime tax, every module — app or widget — is a **Custom Element**, not a Vue component. This gets you lifecycle hooks, encapsulation, and zero framework overhead for free from the platform.
 
-**Apps vs. widgets:** apps (todo, bookmarks) carry real functional state — user input, persistence, interaction. Widgets (clock, weather) are display-first, with minimal or no interaction. Both are built identically as Custom Elements — the distinction is about what a module *does*, not how it's implemented — but it drives directory placement (`/apps/` vs `/widgets/`) and the manifest's `type` field.
+**Apps vs. widgets:** apps (todo, bookmarks) carry real functional state — user input, persistence, interaction. Widgets (clock, weather) are display-first, with minimal or no interaction. Both are built identically as Custom Elements — the distinction is about what a module *does*, not how it's implemented — but it drives directory placement (`/apps/` vs `/widgets/`), the `type` in `core/registry.js` and the tag name (`app-<id>` / `widget-<id>`).
 
 ```js
 // widgets/clock/clock-widget.js
 export class ClockWidget extends HTMLElement {
-  static manifest = {
-    id: 'clock',
-    type: 'widget',
-    cols: 2,
-    rows: 1,
-    defaultCol: 1,
-    defaultRow: 1,
-    expandable: true,
-  };
-
   connectedCallback() {
     this._tick();
     this._interval = setInterval(() => this._tick(), 1000);
@@ -104,15 +94,7 @@ customElements.define('widget-clock', ClockWidget);
 
 The snippet above shows the shape; the real modules render with `innerHTML` templates and an inline `<style>` block each.
 
-**Manifest fields** (each module declares a `static manifest`, but `grid.js` doesn't read it yet — placement comes from `dashboard:config`; see §5):
-
-| field | meaning |
-|---|---|
-| `id` | unique module id, also the registry key |
-| `type` | `'app'` or `'widget'` |
-| `cols` / `rows` | span in grid units |
-| `defaultCol` / `defaultRow` | 1-indexed default placement |
-| `expandable` | whether the hover-zoom-to-fullpage affordance applies |
+Each module is described in two places only: its `type` and loader in `core/registry.js`, and its placement (`col`, `row`, `cols`, `rows`, `enabled`) in `DEFAULT_CONFIG.modules`. Modules don't declare a manifest; the registry stays lazy (no module is imported just to read its layout).
 
 Default placements in the 12-column layout (`DEFAULT_CONFIG.modules` in `core/config.js`):
 - `clock`: `2×2` (`col: 1, row: 1`)
@@ -270,7 +252,7 @@ Decided: no launchd agent, no auto-start. The static server is started manually 
 ## 13. Adding a New App or Widget (checklist)
 
 1. Decide the type: **app** (functional — real state, persistence, or interaction) or **widget** (display-first, minimal/no interaction).
-2. Create `/apps/<id>/<id>-app.js` or `/widgets/<id>/<id>-widget.js`, define the custom element + `static manifest` (including `type`).
+2. Create `/apps/<id>/<id>-app.js` or `/widgets/<id>/<id>-widget.js`, define the custom element (tag `app-<id>` or `widget-<id>`); render the header toggle with `expandButton()` from `core/html.js`.
 3. Register it in `core/registry.js` with its `type` and `load` path.
 4. Add `<id>` with its placement to `DEFAULT_CONFIG.modules` in `core/config.js` and bump `CONFIG_VERSION` so existing saved configs pick it up.
 5. If it persists state, add a namespaced key via `core/storage.js` — don't touch `localStorage` directly.

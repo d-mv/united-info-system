@@ -100,16 +100,6 @@ export function getWeatherIconClass(condition, isDay = true) {
 }
 
 export class WeatherWidget extends HTMLElement {
-  static manifest = {
-    id: 'weather',
-    type: 'widget',
-    cols: 2,
-    rows: 2,
-    defaultCol: 1,
-    defaultRow: 2,
-    expandable: true,
-  };
-
   constructor() {
     super();
     this.configManager = configManager;

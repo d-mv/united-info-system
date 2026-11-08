@@ -9,16 +9,6 @@ export const DEFAULT_BOOKMARKS = [
 ];
 
 export class BookmarksApp extends HTMLElement {
-  static manifest = {
-    id: 'bookmarks',
-    type: 'app',
-    cols: 2,
-    rows: 4,
-    defaultCol: 3,
-    defaultRow: 1,
-    expandable: true,
-  };
-
   constructor() {
     super();
     this.storage = storage;

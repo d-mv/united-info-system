@@ -15,10 +15,6 @@ function makeApp(TodoApp, todos, prefs = null) {
 test('TodoApp renders task list and toggles completion status', async () => {
   const { TodoApp } = await import('../apps/todo/todo-app.js');
 
-  assert.ok(TodoApp.manifest);
-  assert.strictEqual(TodoApp.manifest.id, 'todo');
-  assert.strictEqual(TodoApp.manifest.type, 'app');
-
   const { app, read } = makeApp(TodoApp, [
     { id: 't1', text: 'Test todo item', done: false }
   ]);

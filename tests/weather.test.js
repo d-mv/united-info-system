@@ -14,11 +14,8 @@ function makeWidget(WeatherWidget, weatherSecrets, cache = null) {
   return { widget, readCache: () => widget.storage.get('weather:cache') };
 }
 
-test('WeatherWidget manifests setup dialog and handles secret configuration', async () => {
+test('WeatherWidget renders the setup dialog', async () => {
   const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
-
-  assert.ok(WeatherWidget.manifest);
-  assert.strictEqual(WeatherWidget.manifest.id, 'weather');
 
   const { widget } = makeWidget(
     WeatherWidget,

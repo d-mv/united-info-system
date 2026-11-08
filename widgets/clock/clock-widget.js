@@ -62,16 +62,6 @@ function beep() {
 }
 
 export class ClockWidget extends HTMLElement {
-  static manifest = {
-    id: 'clock',
-    type: 'widget',
-    cols: 2,
-    rows: 1,
-    defaultCol: 1,
-    defaultRow: 1,
-    expandable: true,
-  };
-
   constructor() {
     super();
     this.storage = storage;

@@ -4,12 +4,8 @@ import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
 
-test('ClockWidget defines static manifest and updates time', async () => {
+test('ClockWidget renders time and alarm/timer controls', async () => {
   const { ClockWidget } = await import('../widgets/clock/clock-widget.js');
-
-  assert.ok(ClockWidget.manifest);
-  assert.strictEqual(ClockWidget.manifest.id, 'clock');
-  assert.strictEqual(ClockWidget.manifest.type, 'widget');
 
   const clock = new ClockWidget();
   clock.storage = makeStorage();

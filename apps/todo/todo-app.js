@@ -12,16 +12,6 @@ export const DEFAULT_TODOS = [
 const VIEW_KEY = 'app:todo:view';
 
 export class TodoApp extends HTMLElement {
-  static manifest = {
-    id: 'todo',
-    type: 'app',
-    cols: 4,
-    rows: 4,
-    defaultCol: 5,
-    defaultRow: 1,
-    expandable: true,
-  };
-
   constructor() {
     super();
     this.storage = storage;

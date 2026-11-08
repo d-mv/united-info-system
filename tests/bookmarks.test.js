@@ -7,10 +7,6 @@ installBrowserGlobals();
 test('BookmarksApp renders bookmarks, add button, zoom button, and subscribes to storage changes', async () => {
   const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
 
-  assert.ok(BookmarksApp.manifest);
-  assert.strictEqual(BookmarksApp.manifest.id, 'bookmarks');
-  assert.strictEqual(BookmarksApp.manifest.type, 'app');
-
   const app = new BookmarksApp();
   app.storage = makeStorage({
     'app:bookmarks': [{ id: 'b1', title: 'MDN Web Docs', url: 'https://developer.mozilla.org' }]
