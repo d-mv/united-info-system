@@ -65,7 +65,15 @@ When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is 
 node --test tests/*.test.js
 ```
 
-Tests run in Node against a mock DOM, so they don't catch every browser-only bug.
+Tests run in Node against a mock DOM, so they don't catch every browser-only bug. For that there is a real-browser smoke run (layout, CSS variables, expand/focus, server hardening):
+
+```bash
+# one-time: Playwright lives outside the repo (no package.json here)
+npm install --prefix ~/.cache/uis-playwright playwright-core@1.64.1
+npx --prefix ~/.cache/uis-playwright playwright-core install chromium
+
+node tests/browser/smoke.mjs   # starts start.sh on port 8790, exits non-zero on failure
+```
 
 ---
 
