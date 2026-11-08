@@ -11,6 +11,8 @@
 - **Todo** (`<app-todo>`): add, edit, delete and complete tasks, with an optional due date (overdue dates show in the accent color). Reorder by dragging a row, or focus its grip (⋮⋮) and press ↑/↓. Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
 - **Bookmarks** (`<app-bookmarks>`): add, edit and delete links, optionally in named groups (ungrouped links come first). Each link shows the site's `/favicon.ico` (a letter when there is none). Keys `1`–`9` open the first nine links in a new tab (not while typing or when a dialog is open). **Import** reads a bookmarks HTML file exported from Chrome, Firefox or Safari; folders become groups and links already saved are skipped.
 
+- **Currency** (`<app-currency>`): converts an amount between currencies with the ECB reference rates (via [Frankfurter](https://frankfurter.dev), free, no API key). It converts as you type (`1 234,5` and `1,234.5` both work; an empty, negative or invalid amount shows nothing), and has From/To selects, a swap button, the unit rate and the ECB rate date. The default is 1 EUR → USD. Expanded, it also converts the amount into your favourite currencies (default USD, EUR, GBP, CHF, JPY, without the From currency), which you can add and remove. One request fetches all rates against EUR, and other pairs are cross rates. Rates are cached and shown immediately. They are refreshed once they are 6 hours old (checked on open and hourly), with backoff after a failure. A failed refresh keeps the cached rates, marked "Update failed". With no cache yet, the module says why and offers Retry. Palette: type `100 usd to eur`, `usd in jpy` or `50 €→$` to see the result, then run it to set the converter; there is also `Swap currencies`.
+
 ## Shell
 
 - **Fast cold open**: critical CSS is inlined, modules load lazily and render into pre-sized skeleton cells. A module that fails to load shows an error in its own cell without breaking the rest.
@@ -21,7 +23,7 @@
 - **Command palette**: `⌘K` / `Ctrl+K` anywhere, `/` when not typing, or the `⌘K` button in the bar. Type to find a bookmark, mark a task done, add a task (`Add task: …`), start a timer (`10`, `10m`, `timer 25`), start Pomodoro, open Alarms, dismiss a ring, expand/collapse a module, open Settings, export a backup, or search the web (DuckDuckGo). Each module adds its own commands while it is on the page (`core/commands.js`).
 - **Layout editor**: **Edit layout** in the bar (or the palette) puts an overlay on each module: drag to move, drag the corner to resize, or focus one and use arrow keys (Shift+arrows resize); **Hide** removes it from the page. Moves that leave the grid or overlap another module are refused. **Settings → Modules** turns modules on and off. Wide windows only (below 900px the grid stacks).
 - **Pages**: several dashboards (e.g. Home, Work), each with its own modules and layout; tasks, bookmarks and other data are shared. Add, rename and delete them in **Settings → Pages**; tabs show in the bar once there are two or more, and the palette has `Go to page: …` / `New page`. A new page starts empty. Each browser tab keeps its own page (`#page=<id>` in the address, so pages can be bookmarked); new tabs open the page used last.
-- **Theme**: Auto (follows the OS), Light or Dark, plus an accent colour (red, orange, green, blue, graphite) in **Settings → Appearance**; also `Theme: …` in the palette. Colours are `light-dark()` tokens driven by `color-scheme`, and an inline script applies the saved choice before first paint. Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
+- **Theme**: Auto (follows the OS), Light or Dark, plus an accent colour (red, orange, green, blue, graphite) in **Settings → Appearance**; also `Theme: …` in the palette. Colours are `light-dark()` tokens driven by `color-scheme`, and an inline script applies the saved choice before first paint. Fonts are self-hosted, so the only network calls are weather requests, currency rates (Frankfurter) and bookmark favicons.
 
 ---
 
@@ -59,6 +61,9 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:app:todo` | Tasks in display order, with done and in-progress flags and an optional `due` date (`YYYY-MM-DD`). |
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
 | `dashboard:app:bookmarks` | Saved links (`title`, `url`, optional `group`). |
+| `dashboard:app:currency` | Currency converter preferences: `amount` (the text as typed), `from`, `to`, `favorites` (ISO codes). |
+| `dashboard:app:currency:rates` | Last ECB rates: `base` (EUR), `date` (ECB publication day), `rates` (code → units per 1 EUR), `fetchedAt`. |
+| `dashboard:app:currency:names` | Currency names from Frankfurter's currencies list (`names`: code → name, `fetchedAt`), refreshed after 30 days. |
 
 Since config v4 the layout is yours (v5 moved it into pages; an older layout becomes the "Home" page): saved module placement is kept across updates. A module added to UIS later is appended to your layout automatically (below everything else), and modules that no longer exist are dropped (`normalizeModules` in `core/layout.js`). Configs older than v3 get the default layout but keep enabled flags, and their grid settings reset (they were never applied).
 
