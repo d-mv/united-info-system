@@ -279,6 +279,37 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'palette: Ctrl+K and "/" open it; commands run; focus returns'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.click('body', { position: { x: 5, y: 890 } });
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('command-palette dialog[open]');
+    await page.keyboard.type('pick up parcel');
+    const last = await page.$$eval('command-palette .palette-option__title', els => els.map(e => e.textContent));
+    assert(last.includes('Add task: pick up parcel') && last.includes('Search the web: pick up parcel'), `options: ${last}`);
+    await page.click('command-palette .palette-option:has-text("Add task")');
+    await page.waitForSelector('command-palette dialog', { state: 'detached' });
+    const first = await page.textContent('app-todo .todo-text');
+    assert(first === 'pick up parcel', `todo: ${first}`);
+
+    await page.keyboard.press('/');
+    await page.keyboard.type('refac');
+    const popup = page.context().waitForEvent('page', { timeout: 2000 });
+    await page.keyboard.press('Enter');
+    const opened = await popup;
+    const url = opened.url();
+    await opened.close();
+    assert(/refactoringui/.test(url), `opened ${url}`);
+
+    await page.focus('shell-bar [data-action="open-settings"]');
+    await page.keyboard.press('Control+k');
+    await page.keyboard.press('Escape');
+    const back = await page.evaluate(() => document.activeElement.matches('shell-bar [data-action="open-settings"]'));
+    await close();
+    assert(back, 'focus returns after Escape');
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);

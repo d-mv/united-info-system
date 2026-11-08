@@ -18,6 +18,7 @@
 - **Cross-tab sync**: changes in one tab show up in other open tabs via the `storage` event.
 - **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. Only one module is expanded at a time; the rest of the page is inert while it is, and `Escape` collapses it and returns focus to the button.
 - **Shell bar**: a slim bar above the grid. **Settings → Data** exports everything as one JSON backup file (`uis-backup-YYYY-MM-DD.json`; it includes API keys and tokens, so keep it private) and imports one back. Importing shows what the file holds and asks before it replaces all UIS data, then reloads the page.
+- **Command palette**: `⌘K` / `Ctrl+K` anywhere, `/` when not typing, or the `⌘K` button in the bar. Type to find a bookmark, mark a task done, add a task (`Add task: …`), start a timer (`10`, `10m`, `timer 25`), start Pomodoro, open Alarms, dismiss a ring, expand/collapse a module, open Settings, export a backup, or search the web (DuckDuckGo). Each module adds its own commands while it is on the page (`core/commands.js`).
 - **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
 
 ---

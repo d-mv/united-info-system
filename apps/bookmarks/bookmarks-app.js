@@ -1,5 +1,6 @@
 import { storage } from '../../core/storage.js';
 import { escapeHtml, safeHref, expandButton } from '../../core/html.js';
+import { registerCommands } from '../../core/commands.js';
 import { parseBookmarkHtml, mergeImported, groupBookmarks, faviconUrl, shortcutKey } from './bookmarks-logic.js';
 
 const newId = () => 'b_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
@@ -49,6 +50,14 @@ export class BookmarksApp extends HTMLElement {
       this.unsubscribe = this.storage.subscribe('app:bookmarks', () => this.onStoredChange());
     }
     if (typeof document !== 'undefined') document.addEventListener('keydown', this.onShortcut);
+    this.offCommands = registerCommands('bookmarks', () => this.getBookmarks()
+      .filter(b => safeHref(b.url) !== '#')
+      .map(b => ({
+        title: b.title,
+        hint: this.extractDomain(b.url),
+        keywords: `${b.url} ${b.group || ''}`,
+        run: () => window.open(b.url, '_blank', 'noopener'),
+      })));
   }
 
   // Keys 1-9 open the bookmarks shown with those numbers, unless you're typing,
@@ -102,6 +111,7 @@ export class BookmarksApp extends HTMLElement {
       this.unsubscribe = null;
     }
     if (typeof document !== 'undefined') document.removeEventListener('keydown', this.onShortcut);
+    if (this.offCommands) this.offCommands();
   }
 
   getBookmarks() {

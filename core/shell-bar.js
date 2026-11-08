@@ -5,6 +5,8 @@
 import { storage } from './storage.js';
 import { escapeHtml } from './html.js';
 import { buildBackup, parseBackup, restoreBackup, downloadBackup } from './backup.js';
+import { registerCommands } from './commands.js';
+import { OPEN_PALETTE } from './palette.js';
 
 export class ShellBar extends HTMLElement {
   constructor() {
@@ -18,11 +20,16 @@ export class ShellBar extends HTMLElement {
 
   connectedCallback() {
     if (typeof this.addEventListener === 'function') this.addEventListener('click', this._onClick);
+    this.offCommands = registerCommands('shell', () => [
+      { title: 'Settings', keywords: 'preferences options', run: () => this.openSettings() },
+      { title: 'Export backup', keywords: 'download data json', run: () => this.exportData() },
+    ]);
     this.render();
   }
 
   disconnectedCallback() {
     if (typeof this.removeEventListener === 'function') this.removeEventListener('click', this._onClick);
+    if (this.offCommands) this.offCommands();
   }
 
   openSettings() {
@@ -72,6 +79,9 @@ export class ShellBar extends HTMLElement {
     if (!btn) return;
     switch (btn.dataset.action) {
       case 'open-settings': return this.openSettings();
+      case 'open-palette':
+        if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent(OPEN_PALETTE));
+        return;
       case 'close-settings': return this.closeSettings();
       case 'export': return this.exportData();
       case 'import': {
@@ -126,6 +136,7 @@ export class ShellBar extends HTMLElement {
     this.innerHTML = `
       <nav class="shell-bar__pages" aria-label="Pages"></nav>
       <div class="shell-bar__actions">
+        <button type="button" class="action-button" data-action="open-palette" aria-label="Command palette" title="Command palette (⌘K or /)">⌘K</button>
         <button type="button" class="action-button" data-action="open-settings">Settings</button>
       </div>
       ${this.settingsOpen ? this.renderSettings() : ''}

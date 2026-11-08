@@ -1,5 +1,6 @@
 import { storage } from '../../core/storage.js';
 import { escapeHtml, expandButton } from '../../core/html.js';
+import { registerCommands } from '../../core/commands.js';
 import {
   alarmDue,
   armAlarm,
@@ -115,9 +116,33 @@ export class ClockApp extends HTMLElement {
         if (!this.openDialog) this.render();
       });
     }
+    this.offCommands = registerCommands('clock', (query) => this.commands(query));
     this.render();
     this._tick();
     this._interval = setInterval(() => this._tick(), 1000);
+  }
+
+  commands(query) {
+    const state = this.getState();
+    const list = [];
+    if (state.ringing) list.push({ title: `Dismiss: ${state.ringing.label}`, keywords: 'stop alarm', run: () => this.setState({ ringing: null }) });
+    if (state.timer.state !== 'idle') list.push({ title: state.pomodoro ? 'Stop Pomodoro' : 'Reset timer', keywords: 'timer stop', run: () => this.resetTimerAndPomodoro() });
+    list.push({ title: 'Start Pomodoro', keywords: 'focus timer', run: () => this.startPomodoro() });
+    list.push({ title: 'Alarms', keywords: 'alarm wake', run: () => this.openDialogFor('alarm') });
+    // "10", "10m", "timer 10", "10 min" -> a timer of that many minutes.
+    const m = /^\s*(?:timer\s*)?(\d{1,3})\s*(?:m|min|mins|minutes)?\s*$/i.exec(query);
+    const minutes = m ? Number(m[1]) : 0;
+    if (minutes > 0) {
+      list.push({
+        title: `Start timer: ${minutes} min`,
+        dynamic: true,
+        run: () => {
+          requestNotifyPermission();
+          this.setState({ pomodoro: null, timer: startTimer(resetTimer(minutes * 60000), Date.now()) });
+        },
+      });
+    }
+    return list;
   }
 
   disconnectedCallback() {
@@ -134,6 +159,7 @@ export class ClockApp extends HTMLElement {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    if (this.offCommands) this.offCommands();
   }
 
   getState() {

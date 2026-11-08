@@ -1,5 +1,6 @@
 import { storage } from '../../core/storage.js';
 import { escapeHtml, expandButton } from '../../core/html.js';
+import { registerCommands } from '../../core/commands.js';
 import { moveBefore, moveStep, dueStatus, dueLabel, normalizeDue, isoDay } from './todo-logic.js';
 
 export const DEFAULT_TODOS = [
@@ -30,11 +31,21 @@ export class TodoApp extends HTMLElement {
         this.storage.subscribe(VIEW_KEY, () => this.render()),
       ];
     }
+    this.offCommands = registerCommands('todo', (query) => [
+      ...this.getTodos().filter(t => !t.done).map(t => ({
+        title: `Done: ${t.text}`,
+        hint: 'Task',
+        keywords: t.text,
+        run: () => this.toggleTodo(t.id),
+      })),
+      { title: `Add task: ${query.trim()}`, dynamic: true, run: () => this.addTodo(query) },
+    ]);
   }
 
   disconnectedCallback() {
     this.unsubscribes.forEach(off => off && off());
     this.unsubscribes = [];
+    if (this.offCommands) this.offCommands();
   }
 
   // Tasks changed (here or in another tab). Keep an open edit form and what is
