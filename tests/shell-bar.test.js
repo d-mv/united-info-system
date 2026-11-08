@@ -1,0 +1,38 @@
+import { test } from 'node:test';
+import assert from 'node:assert';
+import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
+
+installBrowserGlobals();
+
+test('ShellBar opens Settings with export and import', async () => {
+  const { ShellBar } = await import('../core/shell-bar.js');
+  const bar = new ShellBar();
+  bar.storage = makeStorage();
+  bar.connectedCallback();
+  assert.ok(bar.innerHTML.includes('data-action="open-settings"'));
+  assert.ok(!bar.innerHTML.includes('<dialog'));
+  bar.openSettings();
+  assert.ok(bar.innerHTML.includes('data-action="export"'));
+  assert.ok(bar.innerHTML.includes('data-action="import"'));
+});
+
+test('ShellBar import asks before replacing data and explains bad files', async () => {
+  const { ShellBar } = await import('../core/shell-bar.js');
+  const bar = new ShellBar();
+  bar.storage = makeStorage({ 'app:todo': [{ id: 'old' }] });
+  bar.openSettings();
+
+  assert.strictEqual(bar.readImport('nope'), 'Err');
+  assert.ok(bar.innerHTML.includes('not valid JSON'));
+
+  const backup = { app: 'uis', format: 1, exportedAt: '2026-11-08T10:00:00Z', data: { 'app:todo': [{ id: 'new' }] } };
+  assert.strictEqual(bar.readImport(JSON.stringify(backup)), 'Ok');
+  assert.ok(bar.innerHTML.includes('1 item'));
+  assert.deepStrictEqual(bar.storage.get('app:todo'), [{ id: 'old' }], 'nothing written before confirming');
+
+  globalThis.location = { reload: () => { globalThis.__reloaded = true; } };
+  bar.confirmImport();
+  assert.deepStrictEqual(bar.storage.get('app:todo'), [{ id: 'new' }]);
+  assert.strictEqual(globalThis.__reloaded, true, 'page reloads so modules re-read their data');
+  delete globalThis.location;
+});

@@ -260,6 +260,25 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'settings: export a backup and import it back'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.click('shell-bar [data-action="open-settings"]');
+    const [download] = await Promise.all([page.waitForEvent('download'), page.click('shell-bar [data-action="export"]')]);
+    const { readFile } = await import('node:fs/promises');
+    const backup = JSON.parse(await readFile(await download.path(), 'utf-8'));
+    assert(backup.app === 'uis' && backup.data.config, 'backup has the config');
+    backup.data['app:todo'] = [{ id: 'r1', text: 'Restored task', done: false }];
+
+    await page.setInputFiles('shell-bar .backup-input', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+    await page.waitForSelector('shell-bar [data-action="import-confirm"]');
+    await Promise.all([page.waitForEvent('load'), page.click('shell-bar [data-action="import-confirm"]')]);
+    await page.waitForSelector('app-todo .todo-text');
+    const texts = await page.$$eval('app-todo .todo-text', els => els.map(e => e.textContent));
+    await close();
+    assert(texts.join() === 'Restored task', `after import: ${texts}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);

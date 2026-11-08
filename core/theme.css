@@ -223,6 +223,38 @@ button {
 
 /* ---------- Shell ---------- */
 
+/* Shrink-wraps the grid so the bar above it matches the grid's width. */
+#frame {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+}
+
+.shell-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.6rem;
+  min-height: 2.8rem;
+  margin-bottom: 1.2rem;
+}
+
+.shell-bar__pages,
+.shell-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  min-width: 0;
+}
+
+.settings-dialog { width: min(56rem, calc(100vw - 3.2rem)); }
+.settings-section { display: flex; flex-direction: column; gap: 1rem; }
+.settings-section + .settings-section { padding-top: 1.6rem; border-top: 1px solid var(--color-line); }
+.settings-hint { margin: 0; font-size: var(--text-xs); color: var(--color-ink-muted); }
+.settings-row { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; }
+.settings-error { margin: 0; font-size: var(--text-xs); color: var(--color-accent); }
+.settings-confirm p { margin: 0 0 1rem; font-size: var(--text-sm); }
+
 #shell {
   display: grid;
   /* Columns are at most --cell-size wide and shrink with narrower windows. */

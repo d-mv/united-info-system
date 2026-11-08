@@ -35,12 +35,16 @@
 </head>
 <body>
 
-  <div id="shell"></div>
+  <div id="frame">
+    <shell-bar class="shell-bar"></shell-bar>
+    <div id="shell"></div>
+  </div>
 
   <script type="module">
     import { configManager } from '/core/config.js';
     import { GridEngine } from '/core/grid.js';
     import { setupExpandController } from '/core/expand.js';
+    import '/core/shell-bar.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
       setupExpandController();

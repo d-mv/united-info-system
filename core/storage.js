@@ -56,6 +56,20 @@ export class StorageEngine {
     }
   }
 
+  /** All keys in this namespace, without the prefix. */
+  keys() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const full = localStorage.key(i);
+        if (full && full.startsWith(this.prefix)) out.push(this._stripPrefix(full));
+      }
+    } catch (err) {
+      console.warn('[storage] Error listing keys:', err);
+    }
+    return out;
+  }
+
   subscribe(key, callback) {
     if (!this.subscribers.has(key)) {
       this.subscribers.set(key, new Set());
