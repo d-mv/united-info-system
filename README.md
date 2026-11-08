@@ -6,7 +6,7 @@
 
 ## Modules
 
-- **Clock** (`<widget-clock>`): current time, a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs. The Alarm row shows time left until it rings. When one goes off, the clock shows a Dismiss banner, beeps for up to a minute and sends a browser notification. Sound needs one click on the page first (browser autoplay rules); notification permission is asked the first time you set an alarm or start a timer.
+- **Clock** (`<app-clock>`): current time, a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs. The Alarm row shows time left until it rings. When one goes off, the clock shows a Dismiss banner, beeps for up to a minute and sends a browser notification. Sound needs one click on the page first (browser autoplay rules); notification permission is asked the first time you set an alarm or start a timer.
 - **Weather** (`<widget-weather>`): current conditions and forecast from Open-Meteo (default, free, no API key) or OpenWeatherMap (needs an API key). The setup dialog picks provider, city, units and key. The last reading is cached and shown immediately on load, and refreshed once it is 15 minutes old (also while the page stays open); if a refresh fails, it stays visible marked "Update failed". Failures say why (city not found, API key rejected, unavailable).
 - **Todo** (`<app-todo>`): add and complete tasks (there is no delete yet). Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
 - **Bookmarks** (`<app-bookmarks>`): add, edit and delete links.

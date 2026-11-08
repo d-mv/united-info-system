@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 test('asks for permission only while it is undecided', async () => {
-  const { requestNotifyPermission } = await import('../widgets/clock/clock-notify.js');
+  const { requestNotifyPermission } = await import('../apps/clock/clock-notify.js');
   await requestNotifyPermission();
   assert.strictEqual(requested, 1);
   await requestNotifyPermission();
@@ -42,7 +42,7 @@ test('asks for permission only while it is undecided', async () => {
 });
 
 test('shows one tagged notification when allowed, closes it on dismiss', async () => {
-  const { showRingNotification, closeRingNotification } = await import('../widgets/clock/clock-notify.js');
+  const { showRingNotification, closeRingNotification } = await import('../apps/clock/clock-notify.js');
   MockNotification.permission = 'granted';
 
   showRingNotification({ kind: 'alarm', label: 'Alarm · 07:30' });
@@ -56,7 +56,7 @@ test('shows one tagged notification when allowed, closes it on dismiss', async (
 });
 
 test('does nothing without permission or without the Notification API', async () => {
-  const { showRingNotification, requestNotifyPermission, notificationsBlocked } = await import('../widgets/clock/clock-notify.js');
+  const { showRingNotification, requestNotifyPermission, notificationsBlocked } = await import('../apps/clock/clock-notify.js');
   MockNotification.permission = 'denied';
   showRingNotification({ kind: 'timer', label: 'Timer done' });
   assert.strictEqual(created.length, 0);

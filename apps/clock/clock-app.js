@@ -61,7 +61,7 @@ function beep() {
   }
 }
 
-export class ClockWidget extends HTMLElement {
+export class ClockApp extends HTMLElement {
   constructor() {
     super();
     this.storage = storage;
@@ -140,12 +140,12 @@ export class ClockWidget extends HTMLElement {
 
     this.innerHTML = `
       <style>
-        .widget-clock.is-ringing { border-color: var(--color-accent); }
-        .widget-clock .clock-status {
+        .app-clock.is-ringing { border-color: var(--color-accent); }
+        .app-clock .clock-status {
           flex: none;
           border-top: 1px solid var(--color-line);
         }
-        .widget-clock .clock-row {
+        .app-clock .clock-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -155,16 +155,16 @@ export class ClockWidget extends HTMLElement {
           border-bottom: 1px solid var(--color-line);
           text-align: left;
         }
-        .widget-clock .clock-row:last-child { border-bottom: none; }
-        .widget-clock .clock-row:hover .clock-row__value { color: var(--color-ink); }
-        .widget-clock .clock-row__value {
+        .app-clock .clock-row:last-child { border-bottom: none; }
+        .app-clock .clock-row:hover .clock-row__value { color: var(--color-ink); }
+        .app-clock .clock-row__value {
           font-family: var(--font-mono);
           font-variant-numeric: tabular-nums;
           font-size: var(--text-xs);
           color: var(--color-ink-muted);
         }
-        .widget-clock .clock-row__value.is-active { color: var(--color-ink); }
-        .widget-clock .clock-ring {
+        .app-clock .clock-row__value.is-active { color: var(--color-ink); }
+        .app-clock .clock-ring {
           flex: none;
           display: flex;
           align-items: center;
@@ -173,10 +173,10 @@ export class ClockWidget extends HTMLElement {
           padding-top: 1rem;
           border-top: 1px solid var(--color-accent);
         }
-        .widget-clock .clock-ring .label { color: var(--color-accent); }
-        .widget-clock .clock-ring .button-primary { height: 2.8rem; padding: 0 1.2rem; }
-        .widget-clock.expanded .clock-status,
-        .widget-clock.expanded .clock-ring { max-width: 48rem; width: 100%; margin: 0 auto; }
+        .app-clock .clock-ring .label { color: var(--color-accent); }
+        .app-clock .clock-ring .button-primary { height: 2.8rem; padding: 0 1.2rem; }
+        .app-clock.expanded .clock-status,
+        .app-clock.expanded .clock-ring { max-width: 48rem; width: 100%; margin: 0 auto; }
 
         .clock-dialog .presets { display: flex; gap: 0.8rem; flex-wrap: wrap; }
         .clock-dialog .presets .button-secondary { height: 2.8rem; padding: 0 1rem; }
@@ -463,7 +463,7 @@ export class ClockWidget extends HTMLElement {
 
 if (typeof customElements !== 'undefined' && customElements.define) {
   try {
-    customElements.define('widget-clock', ClockWidget);
+    customElements.define('app-clock', ClockApp);
   } catch (e) {
     // ignore re-registration error
   }

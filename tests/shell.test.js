@@ -27,7 +27,7 @@ test('core/theme.css exists and defines theme tokens and typography rules', () =
   assert.ok(content.includes('font-family: "IBM Plex Mono"') && content.includes('ibm-plex-mono-latin'), 'Must self-host IBM Plex Mono via @font-face');
   assert.ok(content.includes('font-size: 62.5%'), 'Must set font-size: 62.5% on html');
   assert.ok(content.includes('font-family: var(--font-sans)'), 'Must use font-sans for base styling');
-  assert.ok(content.includes('widget-clock') && content.includes('font-family: var(--font-mono)'), 'Clock must use font-mono');
+  assert.ok(content.includes('app-clock') && content.includes('font-family: var(--font-mono)'), 'Clock must use font-mono');
 });
 
 test('core/theme.css lets the grid shrink and stacks modules on narrow screens', () => {

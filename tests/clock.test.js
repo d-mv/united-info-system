@@ -4,10 +4,10 @@ import { installBrowserGlobals, makeStorage } from './helpers/fake-browser.js';
 
 installBrowserGlobals();
 
-test('ClockWidget renders time and alarm/timer controls', async () => {
-  const { ClockWidget } = await import('../widgets/clock/clock-widget.js');
+test('ClockApp renders time and alarm/timer controls', async () => {
+  const { ClockApp } = await import('../apps/clock/clock-app.js');
 
-  const clock = new ClockWidget();
+  const clock = new ClockApp();
   clock.storage = makeStorage();
   clock.querySelector = (selector) => (clock.innerHTML.includes('id="clock-text"') ? { textContent: '' } : null);
   clock.connectedCallback();
@@ -20,9 +20,9 @@ test('ClockWidget renders time and alarm/timer controls', async () => {
 });
 
 test('A finishing timer waits until a ringing alarm is dismissed', async () => {
-  const { ClockWidget } = await import('../widgets/clock/clock-widget.js');
+  const { ClockApp } = await import('../apps/clock/clock-app.js');
   const now = Date.now();
-  const clock = new ClockWidget();
+  const clock = new ClockApp();
   clock.storage = makeStorage({
     clock: {
       alarm: { time: '07:00', enabled: true, lastFiredDate: null },

@@ -12,7 +12,7 @@ import {
   localDateKey,
   msUntilAlarm,
   formatTimeLeft,
-} from '../widgets/clock/clock-logic.js';
+} from '../apps/clock/clock-logic.js';
 
 // 2026-10-29 07:30:00 local time
 const at = (h, m, s = 0) => new Date(2026, 9, 29, h, m, s).getTime();

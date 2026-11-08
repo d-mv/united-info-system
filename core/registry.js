@@ -3,7 +3,7 @@
  * Maps module IDs to dynamic loaders and isolates module load errors.
  */
 export const registry = {
-  clock:     { type: 'widget', load: () => import('../widgets/clock/clock-widget.js') },
+  clock:     { type: 'app',    load: () => import('../apps/clock/clock-app.js') },
   weather:   { type: 'widget', load: () => import('../widgets/weather/weather-widget.js') },
   bookmarks: { type: 'app',    load: () => import('../apps/bookmarks/bookmarks-app.js') },
   todo:      { type: 'app',    load: () => import('../apps/todo/todo-app.js') },

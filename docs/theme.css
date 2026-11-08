@@ -74,8 +74,8 @@ button, input, select, textarea {
 
 /* Clock / any ticking numeral — monospace + tabular-nums so
    digit changes never shift surrounding layout. */
-widget-clock,
-.widget-clock,
+app-clock,
+.app-clock,
 #clock-time,
 #clock-text,
 .numeral {

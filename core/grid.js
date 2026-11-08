@@ -74,7 +74,7 @@ export class GridEngine {
 
     let realElement;
     if (res.success) {
-      // Custom element tag and class follow the module type: widget-clock, app-todo.
+      // Custom element tag and class follow the module type: widget-weather, app-todo.
       const name = `${res.type === 'app' ? 'app' : 'widget'}-${modConfig.id}`;
       realElement = document.createElement(name);
       realElement.className = `module ${name}`;

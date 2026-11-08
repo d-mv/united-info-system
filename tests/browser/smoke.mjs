@@ -85,7 +85,7 @@ const checks = {
     const { page, errors, close } = await freshPage(browser);
     const mounted = await page.evaluate(() => [...document.querySelectorAll('#shell > .module')].map(m => m.tagName.toLowerCase()));
     await close();
-    assert(mounted.join() === 'widget-clock,widget-weather,app-bookmarks,app-todo', `mounted: ${mounted}`);
+    assert(mounted.join() === 'app-clock,widget-weather,app-bookmarks,app-todo', `mounted: ${mounted}`);
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 

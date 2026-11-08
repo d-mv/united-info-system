@@ -7,6 +7,7 @@ test('registry maps standard modules and allows custom registrations', () => {
   assert.ok(registry.weather);
   assert.ok(registry.bookmarks);
   assert.ok(registry.todo);
+  assert.strictEqual(registry.clock.type, 'app', 'clock is an app (it has state)');
 
   registerModule('test-mod', { type: 'widget', load: async () => ({ loaded: true }) });
   assert.ok(registry['test-mod']);

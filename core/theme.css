@@ -548,8 +548,8 @@ body.modal-open::before {
 
 /* ---------- Clock ---------- */
 
-widget-clock,
-.widget-clock .numeral {
+app-clock,
+.app-clock .numeral {
   font-family: var(--font-mono);
 }
 
@@ -571,16 +571,16 @@ widget-clock,
   line-height: 1;
 }
 
-.widget-clock.expanded .clock-container {
+.app-clock.expanded .clock-container {
   justify-content: center;
 }
 
-.widget-clock.expanded .clock-text {
+.app-clock.expanded .clock-text {
   font-size: 17dvw;
   gap: 2dvw;
 }
 
-.widget-clock.expanded .live-dot {
+.app-clock.expanded .live-dot {
   width: 1.2dvw;
   height: 1.2dvw;
 }

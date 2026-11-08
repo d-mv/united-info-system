@@ -36,11 +36,11 @@
 /apps/
   todo/todo-app.js          # defines <app-todo>
   bookmarks/bookmarks-app.js # defines <app-bookmarks>
-/widgets/
   clock/
-    clock-widget.js         # defines <widget-clock>
+    clock-app.js            # defines <app-clock>
     clock-logic.js          # pure alarm/timer rules (no DOM)
     clock-notify.js         # Notification API wrapper
+/widgets/
   weather/
     weather-widget.js       # defines <widget-weather>
     font/                   # Weather Icons webfont (LICENSE.txt alongside)
@@ -68,11 +68,11 @@ No `src/`, no `dist/`. What's on disk is what runs.
 
 Given the native-APIs-first preference and the desire to avoid a framework runtime tax, every module — app or widget — is a **Custom Element**, not a Vue component. This gets you lifecycle hooks, encapsulation, and zero framework overhead for free from the platform.
 
-**Apps vs. widgets:** apps (todo, bookmarks) carry real functional state — user input, persistence, interaction. Widgets (clock, weather) are display-first, with minimal or no interaction. Both are built identically as Custom Elements — the distinction is about what a module *does*, not how it's implemented — but it drives directory placement (`/apps/` vs `/widgets/`), the `type` in `core/registry.js` and the tag name (`app-<id>` / `widget-<id>`).
+**Apps vs. widgets:** apps (todo, bookmarks, clock) carry real functional state — user input, persistence, interaction. Widgets (weather) are display-first, with minimal or no interaction. Both are built identically as Custom Elements — the distinction is about what a module *does*, not how it's implemented — but it drives directory placement (`/apps/` vs `/widgets/`), the `type` in `core/registry.js` and the tag name (`app-<id>` / `widget-<id>`).
 
 ```js
-// widgets/clock/clock-widget.js
-export class ClockWidget extends HTMLElement {
+// apps/clock/clock-app.js
+export class ClockApp extends HTMLElement {
   connectedCallback() {
     this._tick();
     this._interval = setInterval(() => this._tick(), 1000);
@@ -87,7 +87,7 @@ export class ClockWidget extends HTMLElement {
   }
 }
 
-customElements.define('widget-clock', ClockWidget);
+customElements.define('app-clock', ClockApp);
 ```
 
 **Why not Shadow DOM:** CSS custom properties (theme tokens — spacing, type scale, color) pierce shadow boundaries fine, but given the "seamless, no borders" requirement, light DOM keeps styling simpler — one global stylesheet governs module internals rather than duplicating tokens per shadow root. Revisit only if a module needs true style isolation.
@@ -134,7 +134,7 @@ This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs
 ```js
 // core/registry.js
 export const registry = {
-  clock:     { type: 'widget', load: () => import('/widgets/clock/clock-widget.js') },
+  clock:     { type: 'app',    load: () => import('/apps/clock/clock-app.js') },
   weather:   { type: 'widget', load: () => import('/widgets/weather/weather-widget.js') },
   todo:      { type: 'app',    load: () => import('/apps/todo/todo-app.js') },
   bookmarks: { type: 'app',    load: () => import('/apps/bookmarks/bookmarks-app.js') },
@@ -215,7 +215,7 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 
 - `clock-logic.js` holds the rules as pure functions, tested without a DOM. The alarm is a daily `HH:MM`; it counts as due within a 5-minute grace window (background tabs throttle timers) and records `lastFiredDate` so it rings once per day. Setting a time that already passed today arms it for tomorrow. The timer stores an absolute `endsAt` while running and the remaining time while paused, so reloads don't drift.
 - State lives in `dashboard:clock`, so every open tab ticks the same alarm/timer; dismissing in one tab dismisses in all.
-- Ringing shows a Dismiss banner and beeps via Web Audio for up to a minute. Browsers only allow sound after a user gesture, so the `AudioContext` is unlocked by clicks inside the widget.
+- Ringing shows a Dismiss banner and beeps via Web Audio for up to a minute. Browsers only allow sound after a user gesture, so the `AudioContext` is unlocked by clicks inside the clock.
 - `clock-notify.js` sends a system notification (permission is requested on the set-alarm / start-timer gesture). The fixed tag `uis-clock` stops several tabs from stacking duplicates, and the notification is closed on dismiss, including from another tab.
 
 ## 10b. Todo App
