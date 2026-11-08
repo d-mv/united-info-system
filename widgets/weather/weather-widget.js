@@ -21,6 +21,12 @@ function cacheMatches(entry, query) {
     && String(entry.query.city).toLowerCase() === query.city.toLowerCase();
 }
 
+// OpenWeatherMap reports wind in m/s for metric (mph for imperial); we show km/h.
+function owmWind(speed, units) {
+  if (speed == null) return null;
+  return Math.round(units === 'imperial' ? speed : speed * 3.6);
+}
+
 export function mapWmoCodeToCondition(code) {
   if (code === 0) return 'Clear';
   if (code === 1 || code === 2) return 'Partly Cloudy';
@@ -607,7 +613,7 @@ export class WeatherWidget extends HTMLElement {
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${encCity}&units=${units}&appid=${apiKey}`;
     const forecastRes = await fetch(forecastUrl, { signal });
     const forecastData = forecastRes && forecastRes.ok ? await forecastRes.json() : null;
-    const forecast = forecastData ? this.aggregateOwmForecast(forecastData) : [];
+    const forecast = forecastData ? this.aggregateOwmForecast(forecastData, units) : [];
     const hourly = forecastData ? this.aggregateOwmHourly(forecastData) : [];
 
     return {
@@ -619,9 +625,9 @@ export class WeatherWidget extends HTMLElement {
       feelsLike: data.main.feels_like != null ? Math.round(data.main.feels_like) : null,
       humidity: data.main.humidity != null ? data.main.humidity : null,
       pressure: data.main.pressure != null ? data.main.pressure : null,
-      windSpeed: data.wind && data.wind.speed != null ? Math.round(data.wind.speed) : null,
+      windSpeed: data.wind ? owmWind(data.wind.speed, units) : null,
       windDirection: data.wind && data.wind.deg != null ? data.wind.deg : null,
-      windGust: data.wind && data.wind.gust != null ? Math.round(data.wind.gust) : null,
+      windGust: data.wind ? owmWind(data.wind.gust, units) : null,
       cloudCover: data.clouds && data.clouds.all != null ? data.clouds.all : null,
       precipitation: null,
       visibility: data.visibility != null ? data.visibility : null,
@@ -644,7 +650,7 @@ export class WeatherWidget extends HTMLElement {
     }));
   }
 
-  aggregateOwmForecast(data) {
+  aggregateOwmForecast(data, units = 'metric') {
     if (!data || !Array.isArray(data.list)) return [];
 
     const byDate = new Map();
@@ -660,7 +666,7 @@ export class WeatherWidget extends HTMLElement {
         const tempMax = Math.max(...entries.map((e) => e.main.temp_max));
         const tempMin = Math.min(...entries.map((e) => e.main.temp_min));
         const precipitationProbability = Math.round(Math.max(...entries.map((e) => e.pop || 0)) * 100);
-        const windSpeedMax = Math.round(Math.max(...entries.map((e) => (e.wind ? e.wind.speed : 0))));
+        const windSpeedMax = owmWind(Math.max(...entries.map((e) => (e.wind ? e.wind.speed : 0))), units);
         const midday = entries.find((e) => e.dt_txt.includes('12:00:00')) || entries[Math.floor(entries.length / 2)];
 
         return {

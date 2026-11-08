@@ -191,7 +191,9 @@ test('WeatherWidget fetches full current conditions and forecast from OpenWeathe
     assert.strictEqual(storedCache.feelsLike, 22);
     assert.strictEqual(storedCache.humidity, 58);
     assert.strictEqual(storedCache.pressure, 1012);
-    assert.strictEqual(storedCache.windSpeed, 4);
+    assert.strictEqual(storedCache.windSpeed, 15, 'metric OWM wind is m/s; shown in km/h (4.2 * 3.6)');
+    assert.strictEqual(storedCache.windGust, 26, '7.1 m/s gust in km/h');
+    assert.strictEqual(storedCache.forecast[0].windSpeedMax, 18, 'daily max 5 m/s in km/h');
     assert.strictEqual(storedCache.visibility, 10000);
     assert.ok(Array.isArray(storedCache.forecast));
     assert.strictEqual(storedCache.forecast.length, 2);
@@ -301,4 +303,19 @@ test('WeatherWidget setup dialog prefills the configured default city', async ()
   widget.openSetup();
   assert.ok(widget.innerHTML.includes(`value="${DEFAULT_CONFIG.secrets.weather.city}"`));
   assert.ok(!widget.innerHTML.includes('London'));
+});
+
+test('OpenWeatherMap imperial wind stays in mph', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openweathermap', apiKey: 'k', city: 'Paris', units: 'imperial' });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => (url.includes('/forecast')
+    ? { ok: true, json: async () => ({ list: [] }) }
+    : { ok: true, json: async () => ({ main: { temp: 70 }, weather: [{ main: 'Clear' }], wind: { speed: 10 }, name: 'Paris' }) });
+  try {
+    await widget.fetchWeatherStaleWhileRevalidate();
+    assert.strictEqual(readCache().reading.windSpeed, 10);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
