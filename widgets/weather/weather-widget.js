@@ -99,6 +99,38 @@ export function getWeatherIconClass(condition, isDay = true) {
   return isDay ? entry.day : entry.night;
 }
 
+// ---------- Rain soon ----------
+const RAIN_WINDOW_MS = 3 * 3600 * 1000; // "soon" = within three hours of the first forecast hour
+const RAIN_MIN_PROBABILITY = 60;
+const RAIN_MAX_READING_AGE_MS = 90 * 60 * 1000; // don't warn from an old cached reading
+const WET = /rain|drizzle|shower|thunder/i;
+
+/**
+ * Likely precipitation coming up, from the reading's hourly forecast:
+ * { time: 'HH:00', probability, kind: 'Rain' | 'Snow' }, or null.
+ * Nothing when it's already wet, the reading is old, or chances stay low.
+ */
+export function rainSoon(reading, now = Date.now()) {
+  if (!reading || !Array.isArray(reading.hourly) || !reading.hourly.length) return null;
+  if (!reading.fetchedAt || now - reading.fetchedAt > RAIN_MAX_READING_AGE_MS) return null;
+  if (WET.test(reading.condition || '')) return null;
+  // Hourly times are the city's wall clock; compare them with each other, not with Date.now().
+  const base = Date.parse(reading.hourly[0].time);
+  for (const hour of reading.hourly) {
+    const at = Date.parse(hour.time);
+    if (Number.isNaN(at) || at - base > RAIN_WINDOW_MS) break;
+    if ((hour.precipitationProbability ?? 0) >= RAIN_MIN_PROBABILITY) {
+      const d = new Date(at);
+      return {
+        time: `${String(d.getHours()).padStart(2, '0')}:00`,
+        probability: hour.precipitationProbability,
+        kind: /snow/i.test(hour.condition || '') ? 'Snow' : 'Rain',
+      };
+    }
+  }
+  return null;
+}
+
 export class WeatherWidget extends HTMLElement {
   constructor() {
     super();
@@ -312,6 +344,7 @@ export class WeatherWidget extends HTMLElement {
         .widget-weather .day-temps { flex: 0 0 9rem; text-align: right; }
         .widget-weather .day-temps .low { color: var(--color-ink-muted); margin-left: 0.8rem; }
 
+        .widget-weather .rain-soon { color: var(--color-accent); margin-top: 0.4rem; }
         .widget-weather .setup-dialog .hint { margin: 0; font-size: var(--text-xs); color: var(--color-ink-muted); }
       </style>
       <div class="block-header">
@@ -326,6 +359,7 @@ export class WeatherWidget extends HTMLElement {
     `;
 
     this.bindEvents();
+    if (cache) this.notifyRainSoon(cache);
   }
 
   renderState(needsKey) {
@@ -367,6 +401,7 @@ export class WeatherWidget extends HTMLElement {
           <div class="numeral">${escapeHtml(cache.temp)}°</div>
         </div>
         <div class="condition">${escapeHtml(cache.condition)}${cache.city ? ` · ${escapeHtml(cache.city)}` : ''}</div>
+        ${this.renderRainSoon(cache)}
         <div class="freshness">
           <span class="label">As of <span class="num">${timeStr}</span>${failed ? ' · <span class="warn">Update failed</span>' : ''}</span>
           <span class="live-dot ${failed ? 'live-dot--stale' : 'live-dot--pulse'}" aria-hidden="true"></span>
@@ -376,6 +411,30 @@ export class WeatherWidget extends HTMLElement {
         ${this.renderExpandedDetails(cache, units)}
       </div>
     `;
+  }
+
+  renderRainSoon(cache) {
+    const rain = rainSoon(cache);
+    if (!rain) return '';
+    return `<div class="rain-soon label" role="status">${rain.kind} likely ~${escapeHtml(rain.time)} · ${escapeHtml(rain.probability)}%</div>`;
+  }
+
+  // One system notification per rain event (city + forecast hour), only if the
+  // user already allowed notifications (the clock asks; weather never prompts).
+  notifyRainSoon(cache) {
+    const rain = rainSoon(cache);
+    if (!rain || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const key = `${cache.city || ''}|${new Date(cache.fetchedAt).toDateString()}|${rain.time}`;
+    if (this.storage.get('weather:rain-alert', null) === key) return;
+    this.storage.set('weather:rain-alert', key);
+    try {
+      new Notification(`${rain.kind} soon${cache.city ? ` · ${cache.city}` : ''}`, {
+        body: `${rain.kind} likely around ${rain.time} (${rain.probability}%)`,
+        tag: 'uis-weather-rain',
+      });
+    } catch (err) {
+      console.warn('[weather] Notification failed:', err);
+    }
   }
 
   bindEvents() {

@@ -487,3 +487,47 @@ test('Weather setup has a units selector and saves the choice', async () => {
   }
   assert.strictEqual(widget.configManager.getSecret('weather').units, 'metric');
 });
+
+const hours = (start, probs, condition = 'Overcast') => probs.map((p, i) => ({
+  time: `2026-11-08T${String(start + i).padStart(2, '0')}:00`, temp: 10, condition, precipitationProbability: p,
+}));
+
+test('rainSoon finds likely rain within the next three hours of a fresh reading', async () => {
+  const { rainSoon } = await import('../widgets/weather/weather-widget.js');
+  const now = Date.now();
+  const reading = (h, extra = {}) => ({ condition: 'Overcast', fetchedAt: now, hourly: h, ...extra });
+
+  assert.deepStrictEqual(rainSoon(reading(hours(11, [10, 30, 70, 90])), now), { time: '13:00', probability: 70, kind: 'Rain' });
+  assert.strictEqual(rainSoon(reading(hours(11, [10, 20, 30, 40, 95])), now), null, 'rain 4h out is not soon');
+  assert.strictEqual(rainSoon(reading(hours(11, [80]), { condition: 'Rain' }), now), null, 'already raining');
+  assert.strictEqual(rainSoon(reading(hours(11, [80]), { fetchedAt: now - 3 * 3600000 }), now), null, 'old reading');
+  assert.strictEqual(rainSoon(reading([]), now), null);
+  assert.deepStrictEqual(rainSoon(reading(hours(11, [65], 'Snow')), now).kind, 'Snow');
+});
+
+test('WeatherWidget shows a rain-soon line and notifies once per rain event', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const now = Date.now();
+  const query = { provider: 'openmeteo', city: 'London', units: 'metric' };
+  const { widget } = makeWidget(WeatherWidget, { provider: 'openmeteo', apiKey: '', city: 'London', units: 'metric' },
+    { query, reading: { temp: 9, condition: 'Overcast', city: 'London', fetchedAt: now, hourly: hours(11, [20, 75]) } });
+
+  const shown = [];
+  globalThis.Notification = class { constructor(title, opts) { shown.push({ title, ...opts }); } close() {} };
+  globalThis.Notification.permission = 'granted';
+  try {
+    widget.render();
+    assert.ok(widget.innerHTML.includes('class="rain-soon'), 'line shown');
+    assert.ok(widget.innerHTML.includes('Rain likely'));
+    widget.render();
+    assert.strictEqual(shown.length, 1, 'one notification for the same rain');
+    assert.ok(/12:00/.test(shown[0].body));
+
+    globalThis.Notification.permission = 'default';
+    widget.storage.remove('weather:rain-alert');
+    widget.render();
+    assert.strictEqual(shown.length, 1, 'never asks or notifies without permission');
+  } finally {
+    delete globalThis.Notification;
+  }
+});
