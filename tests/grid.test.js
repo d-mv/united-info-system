@@ -35,9 +35,9 @@ class MockElement {
 
   replaceChild(newChild, oldChild) {
     const idx = this._children.indexOf(oldChild);
-    if (idx !== -1) {
-      this._children[idx] = newChild;
-    }
+    // Browsers throw NotFoundError when oldChild is not a child.
+    if (idx === -1) throw new Error('NotFoundError: oldChild is not a child of this node');
+    this._children[idx] = newChild;
   }
 
   setAttribute(name, val) {
@@ -73,8 +73,8 @@ test('GridEngine initializes grid properties and mounts module elements into she
   });
 
   const mockLoader = async (id) => {
-    if (id === 'clock') return { success: true, id, type: 'widget', tagName: 'widget-clock' };
-    if (id === 'todo') return { success: true, id, type: 'app', tagName: 'app-todo' };
+    if (id === 'clock') return { success: true, id, type: 'widget' };
+    if (id === 'todo') return { success: true, id, type: 'app' };
     return { success: false, id, error: new Error('Unknown') };
   };
 
@@ -145,5 +145,26 @@ test('GridEngine re-renders when the layout changes', async () => {
 
   assert.strictEqual(shell.children.length, 1);
   assert.strictEqual(shell.children[0].dataset.module, 'clock');
+  engine.destroy();
+});
+
+test('GridEngine ignores module loads that finish after a newer render', async () => {
+  const { shell, configManager } = makeEngine();
+  const pending = [];
+  const loader = (id) => new Promise(resolve => pending.push(() => resolve({ success: true, id, type: 'widget' })));
+  const engine = new GridEngine({ shellElement: shell, configManager, loader });
+
+  await engine.init(); // first render: clock + weather loads pending
+  const modules = configManager.get().modules.map(m => (m.id === 'weather' ? { ...m, enabled: false } : m));
+  configManager.update({ modules }); // second render: clock load pending
+
+  // Newest load finishes first, then the stale ones from the first render.
+  pending[2]();
+  pending[0]();
+  pending[1]();
+  await flush();
+
+  assert.strictEqual(shell.children.length, 1);
+  assert.strictEqual(shell.children[0].tagName, 'WIDGET-CLOCK');
   engine.destroy();
 });

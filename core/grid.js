@@ -12,6 +12,8 @@ export class GridEngine {
     this.loader = options.loader || loadModule;
     this.unsubscribe = null;
     this.renderedLayout = null;
+    // Bumped on every render; a load started by an older render must not mount.
+    this.renderGen = 0;
   }
 
   async init() {
@@ -38,6 +40,7 @@ export class GridEngine {
     this.shellElement.style.setProperty('--cell-size', `${gridOpts.cellSize}px`);
     this.shellElement.style.setProperty('--module-padding', `${gridOpts.padding}px`);
 
+    const gen = ++this.renderGen;
     this.shellElement.replaceChildren();
     // Any expanded module is gone after a re-render; release the page scroll lock and scrim.
     if (typeof document !== 'undefined' && document.body) document.body.classList.remove('modal-open');
@@ -48,7 +51,7 @@ export class GridEngine {
       const placeholder = this._createSkeleton(modConfig);
       this.shellElement.appendChild(placeholder);
 
-      this._loadAndMount(modConfig, placeholder);
+      this._loadAndMount(modConfig, placeholder, gen);
     }
   }
 
@@ -65,18 +68,16 @@ export class GridEngine {
     el.style['grid-row'] = `${modConfig.row || 1} / span ${modConfig.rows || 1}`;
   }
 
-  async _loadAndMount(modConfig, placeholder) {
+  async _loadAndMount(modConfig, placeholder, gen) {
     const res = await this.loader(modConfig.id);
-
-    let tagName = res.tagName;
-    if (!tagName) {
-      tagName = res.type === 'app' ? `app-${modConfig.id}` : `widget-${modConfig.id}`;
-    }
+    if (gen !== this.renderGen) return;
 
     let realElement;
     if (res.success) {
-      realElement = document.createElement(tagName);
-      realElement.className = `module ${res.type === 'app' ? 'app-' : 'widget-'}${modConfig.id}`;
+      // Custom element tag and class follow the module type: widget-clock, app-todo.
+      const name = `${res.type === 'app' ? 'app' : 'widget'}-${modConfig.id}`;
+      realElement = document.createElement(name);
+      realElement.className = `module ${name}`;
     } else {
       realElement = document.createElement('div');
       realElement.className = 'module module-error';
