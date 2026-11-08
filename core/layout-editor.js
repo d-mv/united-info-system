@@ -7,7 +7,7 @@
  * re-renders can't wipe them. Modules are inert while editing.
  */
 import { configManager as defaultConfigManager } from './config.js';
-import { place, setEnabled } from './layout.js';
+import { place, setEnabled, moveWithPush } from './layout.js';
 import { moduleName } from './registry.js';
 import { setExpanded } from './expand.js';
 import { escapeHtml } from './html.js';
@@ -126,8 +126,69 @@ export class LayoutEditor {
     const cols = this.config().cols;
     const gap = parseFloat(cs.columnGap) || 0;
     const colPitch = (this.shell.getBoundingClientRect().width + gap) / cols;
-    const rowPitch = (parseFloat(cs.gridAutoRows) || 100) + (parseFloat(cs.rowGap) || 0);
+    // Rows stretch with the window: use the drawn height of the first row.
+    const firstRow = parseFloat(String(cs.gridTemplateRows).split(' ')[0]) || parseFloat(cs.gridAutoRows) || 100;
+    const rowPitch = firstRow + (parseFloat(cs.rowGap) || 0);
     return { colPitch, rowPitch };
+  }
+
+  /**
+   * Outside edit mode, dragging a module by its header label moves it: a
+   * dashed outline shows where it will land (its saved size), and dropping it
+   * pushes modules in the way down (moveWithPush).
+   */
+  startMove(e) {
+    if (this.editing || e.button !== 0) return;
+    const label = e.target.closest && e.target.closest('.block-header__label');
+    const moduleEl = label && label.closest('#shell > .module');
+    if (!moduleEl || moduleEl.classList.contains('expanded') || moduleEl.inert) return;
+    if (typeof matchMedia === 'function' && matchMedia('(max-width: 900px)').matches) return;
+    const id = moduleEl.dataset.module;
+    const mod = this.config().modules.find(m => m.id === id);
+    if (!mod) return;
+    e.preventDefault();
+
+    const pitch = this.pitch();
+    const rect = moduleEl.getBoundingClientRect();
+    // Where in the module the pointer grabbed it, in cells, so the outline follows
+    // the hand (clamped: the module may be drawn bigger than its saved size).
+    const grabCol = Math.min(mod.cols - 1, Math.floor((e.clientX - rect.left) / pitch.colPitch));
+    const grabRow = Math.min(mod.rows - 1, Math.floor((e.clientY - rect.top) / pitch.rowPitch));
+    const ghost = document.createElement('div');
+    ghost.className = 'layout-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    let target = null;
+
+    const onMove = (ev) => {
+      const shellRect = this.shell.getBoundingClientRect();
+      const col = Math.floor((ev.clientX - shellRect.left) / pitch.colPitch) + 1 - grabCol;
+      const row = Math.floor((ev.clientY - shellRect.top) / pitch.rowPitch) + 1 - grabRow;
+      const next = { col: Math.max(1, col), row: Math.max(1, row) };
+      if (!target && next.col === mod.col && next.row === mod.row) return;
+      if (!ghost.isConnected) {
+        this.shell.appendChild(ghost);
+        moduleEl.classList.add('is-moving');
+        document.body.classList.add('layout-moving');
+      }
+      target = next;
+      const ok = !!moveWithPush(this.config().modules, id, target, this.config().cols);
+      ghost.classList.toggle('is-invalid', !ok);
+      this.placeEl(ghost, { ...mod, ...target });
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      ghost.remove();
+      moduleEl.classList.remove('is-moving');
+      document.body.classList.remove('layout-moving');
+      if (!target || (target.col === mod.col && target.row === mod.row)) return;
+      const next = moveWithPush(this.config().modules, id, target, this.config().cols);
+      if (next) this.configManager.setModules(next);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   bind(el, id) {
@@ -195,5 +256,6 @@ export class LayoutEditor {
 export function setupLayoutEditor(options = {}) {
   const editor = new LayoutEditor({ shell: document.getElementById('shell'), ...options });
   document.addEventListener(TOGGLE_LAYOUT, () => editor.toggle());
+  document.addEventListener('pointerdown', (e) => editor.startMove(e));
   return editor;
 }

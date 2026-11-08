@@ -87,3 +87,87 @@ function pick(list, id) {
   const m = list.find(x => x.id === id);
   return [m.col, m.row];
 }
+
+test('fillGaps grows modules right, then down, into empty cells without overlaps', async () => {
+  const { fillGaps } = await import('../core/layout.js');
+  const layout = [
+    { id: 'clock', enabled: true, col: 1, row: 1, cols: 2, rows: 2 },
+    { id: 'todo', enabled: true, col: 7, row: 1, cols: 6, rows: 4 },
+    { id: 'cur', enabled: true, col: 1, row: 5, cols: 3, rows: 2 },
+    { id: 'off', enabled: false, col: 3, row: 1, cols: 2, rows: 2 },
+  ];
+  const out = fillGaps(layout, 12);
+  assert.deepStrictEqual(out.clock, { col: 1, row: 1, cols: 6, rows: 4 }, 'right to todo, then down to the bottom of todo');
+  assert.deepStrictEqual(out.todo, { col: 7, row: 1, cols: 6, rows: 4 });
+  assert.deepStrictEqual(out.cur, { col: 1, row: 5, cols: 12, rows: 2 }, 'full last row');
+  assert.strictEqual(out.off, undefined, 'hidden modules are not placed');
+});
+
+test('fillGaps also grows left/up into gaps nobody borders from the left or top', async () => {
+  const { fillGaps } = await import('../core/layout.js');
+  const out = fillGaps([{ id: 'a', enabled: true, col: 4, row: 3, cols: 2, rows: 1 }], 6);
+  assert.deepStrictEqual(out.a, { col: 1, row: 1, cols: 6, rows: 3 });
+});
+
+test('fillGaps never overlaps and never shrinks (random layouts)', async () => {
+  const { fillGaps } = await import('../core/layout.js');
+  let seed = 7;
+  const rand = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  for (let round = 0; round < 300; round++) {
+    let mods = [];
+    for (let i = 0; i < 6; i++) {
+      const cand = { id: `m${i}`, enabled: true, col: 1 + rand(10), row: 1 + rand(8), cols: 1 + rand(4), rows: 1 + rand(3) };
+      if (cand.col + cand.cols - 1 <= 12 && !collides(mods, cand)) mods.push(cand);
+    }
+    const out = fillGaps(mods, 12);
+    const rects = Object.entries(out).map(([id, r]) => ({ id, enabled: true, ...r }));
+    for (const r of rects) {
+      assert.strictEqual(collides(rects, r), false, `overlap in round ${round}`);
+      const orig = mods.find(m => m.id === r.id);
+      assert.ok(r.col <= orig.col && r.row <= orig.row && r.col + r.cols >= orig.col + orig.cols && r.row + r.rows >= orig.row + orig.rows, 'contains original');
+      assert.ok(r.col + r.cols - 1 <= 12, 'inside the grid');
+    }
+  }
+});
+
+test('moveWithPush: the dropped module takes the spot, overlapped ones move down, the rest close up', async () => {
+  const { moveWithPush } = await import('../core/layout.js');
+  const layout = [
+    { id: 'a', enabled: true, col: 1, row: 1, cols: 2, rows: 2 },
+    { id: 'b', enabled: true, col: 1, row: 3, cols: 2, rows: 2 },
+    { id: 'c', enabled: true, col: 3, row: 1, cols: 4, rows: 4 },
+    { id: 'off', enabled: false, col: 1, row: 1, cols: 2, rows: 2 },
+  ];
+  // Drop b on top of a: a is pushed below b.
+  let out = moveWithPush(layout, 'b', { col: 1, row: 1 }, 12);
+  const at = (id) => { const m = out.find(x => x.id === id); return [m.col, m.row]; };
+  assert.deepStrictEqual(at('b'), [1, 1]);
+  assert.deepStrictEqual(at('a'), [1, 3]);
+  assert.deepStrictEqual(at('c'), [3, 1]);
+  assert.deepStrictEqual(at('off'), [1, 1], 'hidden modules are left alone');
+
+  // Drop a far below: others close the hole it leaves, a stays where dropped.
+  out = moveWithPush(layout, 'a', { col: 1, row: 9 }, 12);
+  assert.deepStrictEqual(at('b'), [1, 1], 'b closes up');
+  assert.deepStrictEqual(at('a'), [1, 9]);
+
+  assert.strictEqual(moveWithPush(layout, 'c', { col: 10, row: 1 }, 12), null, 'off the right edge');
+});
+
+test('moveWithPush never leaves overlaps (random drops)', async () => {
+  const { moveWithPush } = await import('../core/layout.js');
+  const base = [
+    { id: 'a', enabled: true, col: 1, row: 1, cols: 2, rows: 2 },
+    { id: 'b', enabled: true, col: 1, row: 3, cols: 2, rows: 2 },
+    { id: 'c', enabled: true, col: 3, row: 1, cols: 4, rows: 4 },
+    { id: 'd', enabled: true, col: 7, row: 1, cols: 6, rows: 4 },
+    { id: 'e', enabled: true, col: 1, row: 5, cols: 3, rows: 2 },
+  ];
+  for (const m of base) for (let col = 1; col <= 12; col++) for (let row = 1; row <= 8; row++) {
+    const out = moveWithPush(base, m.id, { col, row }, 12);
+    if (!out) continue;
+    for (const x of out) assert.strictEqual(collides(out, x), false, `${m.id} -> ${col},${row}`);
+    const moved = out.find(x => x.id === m.id);
+    assert.deepStrictEqual([moved.col, moved.row], [col, row]);
+  }
+});

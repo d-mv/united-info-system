@@ -88,3 +88,75 @@ export function normalizeModules(saved, defaults, knownIds) {
   }
   return result;
 }
+
+/**
+ * Where modules are drawn: each shown module grows into empty neighbouring
+ * cells (right, down, then left, up) so the page has no gaps. The saved
+ * placement is untouched; this is recomputed on every layout change.
+ * Returns { id: { col, row, cols, rows } } for enabled modules.
+ */
+export function fillGaps(modules, gridCols) {
+  const shown = modules
+    .filter(m => m.enabled !== false)
+    .map(m => ({ id: m.id, ...rectOf(m) }))
+    .sort((a, b) => a.row - b.row || a.col - b.col);
+  const maxRow = shown.reduce((max, r) => Math.max(max, r.row + r.rows - 1), 0);
+  const taken = new Set();
+  const key = (c, r) => `${c},${r}`;
+  const mark = (rect) => {
+    for (let c = rect.col; c < rect.col + rect.cols; c++) for (let r = rect.row; r < rect.row + rect.rows; r++) taken.add(key(c, r));
+  };
+  shown.forEach(mark);
+  const free = (c1, c2, r1, r2) => {
+    if (c1 < 1 || c2 > gridCols || r1 < 1 || r2 > maxRow) return false;
+    for (let c = c1; c <= c2; c++) for (let r = r1; r <= r2; r++) if (taken.has(key(c, r))) return false;
+    return true;
+  };
+  // One direction at a time for every module (right, down, left, up), so a
+  // module beside a gap fills it before one above grows down into it.
+  const grown = shown.map(m => ({ ...m }));
+  const steps = [
+    { test: g => free(g.col + g.cols, g.col + g.cols, g.row, g.row + g.rows - 1), apply: g => { g.cols++; return { col: g.col + g.cols - 1, row: g.row, cols: 1, rows: g.rows }; } },
+    { test: g => free(g.col, g.col + g.cols - 1, g.row + g.rows, g.row + g.rows), apply: g => { g.rows++; return { col: g.col, row: g.row + g.rows - 1, cols: g.cols, rows: 1 }; } },
+    { test: g => free(g.col - 1, g.col - 1, g.row, g.row + g.rows - 1), apply: g => { g.col--; g.cols++; return { col: g.col, row: g.row, cols: 1, rows: g.rows }; } },
+    { test: g => free(g.col, g.col + g.cols - 1, g.row - 1, g.row - 1), apply: g => { g.row--; g.rows++; return { col: g.col, row: g.row, cols: g.cols, rows: 1 }; } },
+  ];
+  for (const step of steps) {
+    for (const g of grown) while (step.test(g)) mark(step.apply(g));
+  }
+  const out = {};
+  for (const g of grown) out[g.id] = { col: g.col, row: g.row, cols: g.cols, rows: g.rows };
+  return out;
+}
+
+/**
+ * Move module `id` to `target` ({ col, row }) and make room: modules it lands
+ * on move down until they fit, then every other module moves up as far as it
+ * can (closing the hole the moved one left). The moved module stays exactly
+ * where it was dropped. Returns the new list, or null if it doesn't fit the grid.
+ */
+export function moveWithPush(modules, id, target, gridCols) {
+  const current = modules.find(m => m.id === id);
+  if (!current) return null;
+  const moved = { ...current, ...target };
+  if (!fits(moved, gridCols)) return null;
+
+  const others = modules
+    .filter(m => m.id !== id && m.enabled !== false)
+    .map(m => ({ ...m }))
+    .sort((a, b) => (a.row - b.row) || (a.col - b.col));
+
+  // Push down, top to bottom, against everything already settled.
+  const settled = [moved];
+  for (const m of others) {
+    while (collides(settled, m)) m.row++;
+    settled.push(m);
+  }
+  // Close up: each module (not the moved one) rises while the cell above is free.
+  for (const m of others) {
+    while (m.row > 1 && !collides(settled, { ...m, row: m.row - 1 })) m.row--;
+  }
+
+  const byId = new Map(settled.map(m => [m.id, m]));
+  return modules.map(m => byId.get(m.id) || m);
+}

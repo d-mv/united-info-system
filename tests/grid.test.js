@@ -101,8 +101,10 @@ test('GridEngine initializes grid properties and mounts module elements into she
   const clockEl = shell.children[0];
   assert.strictEqual(clockEl.tagName, 'WIDGET-CLOCK');
   assert.strictEqual(clockEl.dataset.module, 'clock');
-  assert.strictEqual(clockEl.style['grid-column'], '1 / span 2');
-  assert.strictEqual(clockEl.style['grid-row'], '1 / span 1');
+  // Drawn grown into the empty cells beside and below it (saved: 2x1 at 1,1).
+  assert.strictEqual(clockEl.style['grid-column'], '1 / span 4');
+  assert.strictEqual(clockEl.style['grid-row'], '1 / span 4');
+  assert.strictEqual(shell.style.getPropertyValue('--grid-rows'), '4');
 });
 
 function makeEngine() {
@@ -188,7 +190,12 @@ test('GridEngine moves modules in place when only their placement changes', asyn
   assert.strictEqual(loaded.length, 2, 'nothing reloaded');
   assert.deepStrictEqual(shell.children, before, 'same elements');
   const weather = shell.children.find(el => el.dataset.module === 'weather');
-  assert.strictEqual(weather.style['grid-column'], '5 / span 3');
+  assert.strictEqual(weather.style['grid-column'], '5 / span 8', 'grown to the right edge');
   assert.strictEqual(weather.style['grid-row'], '1 / span 2');
+
+  // Editing the layout shows the saved cells.
+  engine.editing = true;
+  engine.updatePlacement(configManager.get());
+  assert.strictEqual(weather.style['grid-column'], '5 / span 3');
   engine.destroy();
 });

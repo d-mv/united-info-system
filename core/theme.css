@@ -163,7 +163,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  padding: 4rem 2rem 8rem;
+  padding: 4rem 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -228,10 +228,12 @@ button {
 /* ---------- Shell ---------- */
 
 /* Shrink-wraps the grid so the bar above it matches the grid's width. */
+/* The bar and the grid fill the window: full width, and at least its height. */
 #frame {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
+  width: 100%;
+  min-height: calc(100dvh - 8rem);
 }
 
 .shell-bar {
@@ -395,8 +397,22 @@ button {
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, var(--color-ink-muted) 50%);
 }
+/* Move a module by dragging its header label (wide windows only). */
+#shell > .module .block-header__label { cursor: grab; user-select: none; touch-action: none; }
+body.layout-moving, body.layout-moving * { cursor: grabbing !important; user-select: none; }
+#shell > .module.is-moving { opacity: 0.55; }
+.layout-ghost {
+  z-index: 6;
+  border: 2px dashed var(--color-ink);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  pointer-events: none;
+}
+.layout-ghost.is-invalid { border-color: var(--color-accent); }
+
 @media (max-width: 900px) {
   .layout-overlay, .shell-bar__layout:not(.is-active) { display: none; }
+  #shell > .module .block-header__label { cursor: auto; }
 }
 
 .dialog.settings-dialog { width: min(56rem, calc(100vw - 3.2rem)); }
@@ -408,12 +424,15 @@ button {
 .settings-confirm p { margin: 0 0 1rem; font-size: var(--text-sm); }
 
 #shell {
+  flex: 1;
   display: grid;
-  /* Columns are at most --cell-size wide and shrink with narrower windows. */
-  grid-template-columns: repeat(var(--grid-cols), minmax(0, var(--cell-size)));
+  /* Columns share the width. Rows share the height, never shorter than
+     --cell-size; core/grid.js sets --grid-rows to the rows in use. */
+  grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--grid-rows, 4), minmax(var(--cell-size), 1fr));
   grid-auto-rows: var(--cell-size);
   gap: var(--grid-gap);
-  max-width: 100%;
+  width: 100%;
 }
 
 /* Narrow screens: one column, modules stacked in config order. !important
@@ -422,6 +441,7 @@ button {
   #shell {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
     grid-auto-rows: auto;
   }
   #shell > .module {

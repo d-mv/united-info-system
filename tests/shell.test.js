@@ -33,7 +33,8 @@ test('core/theme.css exists and defines theme tokens and typography rules', () =
 
 test('core/theme.css lets the grid shrink and stacks modules on narrow screens', () => {
   const content = fs.readFileSync(path.resolve('core/theme.css'), 'utf-8');
-  assert.ok(content.includes('repeat(var(--grid-cols), minmax(0, var(--cell-size)))'), 'columns shrink below the cell size');
+  assert.ok(content.includes('repeat(var(--grid-cols), minmax(0, 1fr))'), 'columns share the window width');
+  assert.ok(content.includes('repeat(var(--grid-rows, 4), minmax(var(--cell-size), 1fr))'), 'rows share the height, at least the cell size');
   const narrow = content.slice(content.indexOf('@media (max-width: 900px)'));
   assert.ok(content.includes('@media (max-width: 900px)'), 'has a narrow-screen layout');
   assert.ok(/grid-column: 1 \/ -1 !important/.test(narrow), 'modules span the single column (overrides inline placement)');

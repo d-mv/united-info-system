@@ -652,6 +652,53 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'fill: grid spans the window, modules grow into gaps, header drag moves and pushes'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    const geo = await page.evaluate(() => {
+      const shell = document.getElementById('shell').getBoundingClientRect();
+      const cur = document.querySelector('app-currency').getBoundingClientRect();
+      return { shellW: shell.width, vw: window.innerWidth, curW: cur.width, curCol: document.querySelector('app-currency').style.gridColumn };
+    });
+    assert(geo.shellW > geo.vw - 60, `grid fills the width: ${JSON.stringify(geo)}`);
+    assert(geo.curCol === '1 / span 12', `currency grows across its row: ${geo.curCol}`);
+
+    const stored = (id) => page.evaluate((id) => {
+      const c = JSON.parse(localStorage.getItem('dashboard:config'));
+      const m = c.pages.find(p => p.id === c.activePage).modules.find(x => x.id === id);
+      return [m.col, m.row];
+    }, id);
+
+    // A click on the header label moves nothing.
+    await page.click('app-currency .block-header__label');
+    assert((await stored('currency')).join() === '1,9', 'click is not a move');
+
+    // Drag Currency's header onto the top-left cell: it lands there, the clock is pushed down.
+    const label = await page.locator('app-currency .block-header__label').boundingBox();
+    const clock = await page.locator('app-clock').boundingBox();
+    await page.mouse.move(label.x + 5, label.y + 5);
+    await page.mouse.down();
+    await page.mouse.move(clock.x + 20, clock.y + 20, { steps: 8 });
+    assert(await page.isVisible('.layout-ghost'), 'drop outline shown while dragging');
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    assert((await stored('currency')).join() === '1,1', `currency moved: ${await stored('currency')}`);
+    const clockAt = await stored('clock');
+    assert(clockAt[1] >= 3, `clock pushed down: ${clockAt}`);
+    const overlaps = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('#shell > .module')].map(m => m.getBoundingClientRect());
+      return boxes.some((a, i) => boxes.some((b, j) => i < j && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+    });
+    assert(!overlaps, 'no modules overlap on screen');
+
+    // Edit layout shows saved (ungrown) cells.
+    await page.click('shell-bar [data-action="toggle-layout"]');
+    const editCol = await page.evaluate(() => document.querySelector('app-currency').style.gridColumn);
+    await page.click('shell-bar [data-action="toggle-layout"]');
+    await close();
+    assert(editCol === '1 / span 3', `edit mode shows saved size: ${editCol}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);

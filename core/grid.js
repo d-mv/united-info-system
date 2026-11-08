@@ -1,5 +1,9 @@
 import { configManager } from './config.js';
 import { loadModule } from './registry.js';
+import { fillGaps } from './layout.js';
+
+// Same event name as core/layout-editor.js (LAYOUT_MODE); not imported to keep the grid independent.
+const LAYOUT_MODE = 'uis:layout-mode';
 
 // The part of the config the grid draws. Widget settings live in the same
 // config key but must not tear down the dashboard when they change.
@@ -21,12 +25,42 @@ export class GridEngine {
     this.renderedLayout = null;
     // Bumped on every render; a load started by an older render must not mount.
     this.renderGen = 0;
+    // While the layout is being edited, modules are drawn at their saved cells
+    // (no growing into gaps), so what you arrange is what gets saved.
+    this.editing = false;
+  }
+
+  /** { id: {col,row,cols,rows} } as drawn: grown into gaps unless editing. */
+  placements(config) {
+    const modules = (config.modules || []).filter(m => m.enabled !== false);
+    if (this.editing) {
+      return Object.fromEntries(modules.map(m => [m.id, { col: m.col || 1, row: m.row || 1, cols: m.cols || 1, rows: m.rows || 1 }]));
+    }
+    return fillGaps(modules, (config.grid && config.grid.columns) || 12);
+  }
+
+  applyPlacements(config) {
+    const placed = this.placements(config);
+    this.placed = placed;
+    const rows = Object.values(placed).reduce((max, p) => Math.max(max, p.row + p.rows - 1), 1);
+    this.shellElement.style.setProperty('--grid-rows', String(rows));
+    for (const el of this.shellElement.children) {
+      const p = el.dataset && placed[el.dataset.module];
+      if (p) this._applyGridStyle(el, p);
+    }
   }
 
   async init() {
     if (!this.shellElement) return;
 
     this.renderGrid();
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener(LAYOUT_MODE, (e) => {
+        this.editing = !!(e.detail && e.detail.editing);
+        this.applyPlacements(this.configManager.get());
+      });
+    }
 
     if (this.configManager.subscribe) {
       this.unsubscribe = this.configManager.subscribe((config) => {
@@ -69,16 +103,13 @@ export class GridEngine {
 
       this._loadAndMount(modConfig, placeholder, gen);
     }
+    this.applyPlacements(config);
   }
 
   /** Re-place mounted modules (and skeletons still loading) without remounting them. */
   updatePlacement(config) {
     this.renderedLayout = layoutOf(config);
-    const byId = new Map((config.modules || []).map(m => [m.id, m]));
-    for (const el of this.shellElement.children) {
-      const modConfig = el.dataset && byId.get(el.dataset.module);
-      if (modConfig) this._applyGridStyle(el, modConfig);
-    }
+    this.applyPlacements(config);
   }
 
   _createSkeleton(modConfig) {
@@ -111,7 +142,7 @@ export class GridEngine {
     }
 
     realElement.dataset.module = modConfig.id;
-    this._applyGridStyle(realElement, modConfig);
+    this._applyGridStyle(realElement, (this.placed && this.placed[modConfig.id]) || modConfig);
 
     this.shellElement.replaceChild(realElement, placeholder);
   }
