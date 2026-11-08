@@ -211,9 +211,9 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 
 ---
 
-## 10a. Clock Widget — Alarm & Timer
+## 10a. Clock App — Alarms, Timer, Pomodoro, Second Zone
 
-- `clock-logic.js` holds the rules as pure functions, tested without a DOM. The alarm is a daily `HH:MM`; it counts as due within a 5-minute grace window (background tabs throttle timers) and records `lastFiredDate` so it rings once per day. Setting a time that already passed today arms it for tomorrow. The timer stores an absolute `endsAt` while running and the remaining time while paused, so reloads don't drift.
+- `clock-logic.js` holds the rules as pure functions, tested without a DOM. Alarms are a list of `{ id, time: 'HH:MM', days, enabled, lastFiredDate }`; `days` are weekdays (0 = Sunday), empty = every day. An alarm counts as due within a 5-minute grace window (background tabs throttle timers) and records `lastFiredDate` so it rings once per day. Setting (or switching on) a time that already passed today arms it for its next day. One thing rings at a time: the first due alarm, then a finished timer. Pomodoro (`{ phase, round }`, fixed 25/5/15 × 4) drives the normal timer; when a phase ends it rings and the next phase starts at once. The second zone is an IANA name validated with `Intl.DateTimeFormat`. The timer stores an absolute `endsAt` while running and the remaining time while paused, so reloads don't drift.
 - State lives in `dashboard:clock`, so every open tab ticks the same alarm/timer; dismissing in one tab dismisses in all.
 - Ringing shows a Dismiss banner and beeps via Web Audio for up to a minute. Browsers only allow sound after a user gesture, so the `AudioContext` is unlocked by clicks inside the clock.
 - `clock-notify.js` sends a system notification (permission is requested on the set-alarm / start-timer gesture). The fixed tag `uis-clock` stops several tabs from stacking duplicates, and the notification is closed on dismiss, including from another tab.

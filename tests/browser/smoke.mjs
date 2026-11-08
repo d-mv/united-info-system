@@ -228,6 +228,38 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'clock: weekday alarms, second zone, pomodoro'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.click('app-clock [data-action="open-alarm"]');
+    await page.fill('app-clock dialog input[name="time"]', '06:30');
+    await page.click('app-clock dialog .day:has(input[value="1"])');
+    await page.click('app-clock dialog .day:has(input[value="3"])');
+    await page.click('app-clock dialog button[type="submit"]');
+    const listed = await page.textContent('app-clock dialog .alarm-list');
+    assert(/06:30/.test(listed) && /Mon Wed/.test(listed), `alarm list: ${listed}`);
+    assert(await page.evaluate(() => document.activeElement.matches('app-clock dialog input[name="time"]')), 'focus back on time');
+    await page.click('app-clock dialog .alarm-item label');
+    const off = await page.evaluate(() => JSON.parse(localStorage.getItem('dashboard:clock')).alarms[0].enabled);
+    assert(off === false, 'label click switches the alarm off');
+    await page.click('app-clock dialog [data-action="close-dialog"] >> nth=-1');
+
+    await page.click('app-clock [data-action="open-zone"]');
+    await page.fill('app-clock dialog input[name="zone"]', 'Nowhere/Land');
+    await page.click('app-clock dialog button[type="submit"]');
+    assert(await page.isVisible('app-clock dialog .error'), 'bad zone explained');
+    await page.fill('app-clock dialog input[name="zone"]', 'Asia/Tokyo');
+    await page.click('app-clock dialog button[type="submit"]');
+    const zone = await page.textContent('app-clock .clock-zone');
+    assert(/Tokyo\s+\d\d:\d\d/.test(zone), `zone: ${zone}`);
+
+    await page.click('app-clock [data-action="open-timer"]');
+    await page.click('app-clock dialog [data-action="pomodoro-start"]');
+    const label = await page.textContent('app-clock [data-action="open-timer"] .label');
+    await close();
+    assert(label === 'Focus 1/4', `timer row: ${label}`);
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);
