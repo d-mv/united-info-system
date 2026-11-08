@@ -125,3 +125,27 @@ test('start.sh keeps + in paths literal (only form data uses + for space)', asyn
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('start.sh sends no body for HEAD, including on errors', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uis-serve-'));
+  fs.writeFileSync(path.join(root, 'ok.txt'), 'hello');
+  fs.writeFileSync(path.join(root, 'locked.txt'), 'secret');
+  fs.chmodSync(path.join(root, 'locked.txt'), 0o000); // reading it fails -> 500
+  const proc = await startServer(root);
+  const head = (target) => rawRequest(`HEAD ${target} HTTP/1.1\r\nHost: 127.0.0.1:${PORT}\r\n\r\n`);
+  const bodyOf = (res) => res.split('\r\n\r\n')[1];
+  try {
+    for (const [target, status] of [['/ok.txt', '200'], ['/missing.txt', '404'], ['/locked.txt', '500']]) {
+      const res = await head(target);
+      assert.match(res, new RegExp(`^HTTP/1\\.1 ${status} `), target);
+      assert.strictEqual(bodyOf(res), '', `${target}: HEAD has no body`);
+    }
+    const post = await rawRequest(`POST / HTTP/1.1\r\nHost: 127.0.0.1:${PORT}\r\nContent-Length: 0\r\n\r\n`);
+    assert.match(post, /^HTTP\/1\.1 405 /);
+    assert.strictEqual(bodyOf(post), '405 Method Not Allowed\n');
+  } finally {
+    proc.kill('SIGTERM');
+    fs.chmodSync(path.join(root, 'locked.txt'), 0o600);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

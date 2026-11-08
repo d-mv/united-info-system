@@ -74,6 +74,14 @@ rescue StandardError => e
   warn "[send_response error] #{e.class}: #{e.message}"
 end
 
+# Plain-text status response; HEAD gets the headers only.
+def send_text(socket, status, status_text, method)
+  body = "#{status} #{status_text}\n"
+  send_response(socket, status, status_text,
+                { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' },
+                method == 'HEAD' ? nil : body)
+end
+
 def handle_request(socket)
   # Harden against blocked/hanging connections with timeout
   socket.timeout = 5 if socket.respond_to?(:timeout=)
@@ -89,30 +97,14 @@ def handle_request(socket)
     host = value.strip.downcase if value && name.strip.casecmp?('host')
   end
 
-  unless ALLOWED_HOSTS.include?(host)
-    body = "403 Forbidden\n"
-    send_response(socket, 403, 'Forbidden',
-                  { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' },
-                  method == 'HEAD' ? nil : body)
-    return
-  end
+  return send_text(socket, 403, 'Forbidden', method) unless ALLOWED_HOSTS.include?(host)
 
-  unless %w[GET HEAD].include?(method)
-    body = "405 Method Not Allowed\n"
-    send_response(socket, 405, 'Method Not Allowed',
-                  { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' },
-                  method == 'HEAD' ? nil : body)
-    return
-  end
+  return send_text(socket, 405, 'Method Not Allowed', method) unless %w[GET HEAD].include?(method)
 
   full_path = resolved_path(path)
 
   if full_path.nil? || !File.exist?(full_path) || File.directory?(full_path)
-    body = "404 Not Found: #{path}\n"
-    send_response(socket, 404, 'Not Found',
-                  { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' },
-                  method == 'HEAD' ? nil : body)
-    return
+    return send_text(socket, 404, 'Not Found', method)
   end
 
   body = File.binread(full_path)
@@ -126,9 +118,7 @@ def handle_request(socket)
 rescue StandardError => e
   warn "[error] #{e.class}: #{e.message}"
   begin
-    body = "500 Internal Server Error\n"
-    send_response(socket, 500, 'Internal Server Error',
-                  { 'Content-Type' => 'text/plain', 'Content-Length' => body.bytesize.to_s, 'Connection' => 'close' }, body)
+    send_text(socket, 500, 'Internal Server Error', method)
   rescue StandardError
     nil
   end
