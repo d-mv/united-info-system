@@ -21,6 +21,20 @@ function cacheMatches(entry, query) {
     && String(entry.query.city).toLowerCase() === query.city.toLowerCase();
 }
 
+// Adapter results as plain tagged data. Failure reasons:
+// 'not-found' | 'bad-key' | 'timeout' | 'http' | 'network'.
+const Ok = (value) => ({ _tag: 'Ok', value });
+const Err = (reason) => ({ _tag: 'Err', error: { reason } });
+
+// What the widget shows for each failure, and which action fixes it.
+const FAILURES = {
+  'not-found': { label: 'City not found', action: 'setup' },
+  'bad-key': { label: 'API key rejected', action: 'setup' },
+  'timeout': { label: 'Weather unavailable', action: 'retry' },
+  'http': { label: 'Weather unavailable', action: 'retry' },
+  'network': { label: 'Weather unavailable', action: 'retry' },
+};
+
 // OpenWeatherMap reports wind in m/s for metric (mph for imperial); we show km/h.
 function owmWind(speed, units) {
   if (speed == null) return null;
@@ -97,8 +111,10 @@ export class WeatherWidget extends HTMLElement {
     this.configManager = configManager;
     this.storage = storage;
     this.isSetupOpen = false;
-    // 'loading' | 'ok' | 'error' — drives the empty/error states when there is no cache.
-    this.fetchState = 'loading';
+    // { kind: 'loading' } | { kind: 'ok' } | { kind: 'error', reason }
+    this.status = { kind: 'loading' };
+    // Only the latest fetch may write the cache and status.
+    this.requestSeq = 0;
     this.unsubscribe = null;
     this.settingsKey = null;
   }
@@ -125,7 +141,7 @@ export class WeatherWidget extends HTMLElement {
     const next = JSON.stringify(this.getSecrets());
     if (next === this.settingsKey) return;
     this.settingsKey = next;
-    this.fetchState = 'loading';
+    this.status = { kind: 'loading' };
     if (!this.isSetupOpen) this.render();
     this.fetchWeatherStaleWhileRevalidate();
   }
@@ -293,11 +309,15 @@ export class WeatherWidget extends HTMLElement {
           <button type="button" class="action-button state-setup-button">Open setup</button>
         </div>`;
     }
-    if (this.fetchState === 'error') {
+    if (this.status.kind === 'error') {
+      const failure = FAILURES[this.status.reason] || FAILURES.network;
+      const button = failure.action === 'setup'
+        ? '<button type="button" class="action-button state-setup-button">Open setup</button>'
+        : '<button type="button" class="action-button retry-button">Retry</button>';
       return `
         <div class="state" role="status">
-          <p class="label">Weather unavailable</p>
-          <button type="button" class="action-button retry-button">Retry</button>
+          <p class="label">${failure.label}</p>
+          ${button}
         </div>`;
     }
     return `
@@ -311,7 +331,7 @@ export class WeatherWidget extends HTMLElement {
       ? new Date(cache.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '--:--';
     const iconClass = this.weatherIconClass(cache.condition, cache.fetchedAt, cache.sunrise, cache.sunset);
-    const failed = this.fetchState === 'error';
+    const failed = this.status.kind === 'error';
 
     return `
       <div class="primary">
@@ -344,9 +364,9 @@ export class WeatherWidget extends HTMLElement {
 
     const retryBtn = this.querySelector('.retry-button');
     if (retryBtn) retryBtn.addEventListener('click', () => {
-      this.fetchState = 'loading';
+      this.status = { kind: 'loading' };
       this.render();
-      this.fetchWeatherStaleWhileRevalidate(true);
+      this.fetchWeatherStaleWhileRevalidate();
     });
 
     if (this.isSetupOpen) this.bindSetupDialog();
@@ -508,9 +528,9 @@ export class WeatherWidget extends HTMLElement {
     // A real change is picked up by onSettingsChange, which refetches.
     this.configManager.setSecret('weather', { provider, city, apiKey });
     const unchanged = this.settingsKey === before;
-    if (unchanged) this.fetchState = 'loading';
+    if (unchanged) this.status = { kind: 'loading' };
     this.closeSetup();
-    if (unchanged) this.fetchWeatherStaleWhileRevalidate(true);
+    if (unchanged) this.fetchWeatherStaleWhileRevalidate();
   }
 
   bindSetupDialog() {
@@ -547,9 +567,9 @@ export class WeatherWidget extends HTMLElement {
   async fetchOpenMeteo(city, units = 'metric', signal) {
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
     const geoRes = await fetch(geoUrl, { signal });
-    if (!geoRes.ok) return null;
+    if (!geoRes.ok) return Err('http');
     const geoData = await geoRes.json();
-    if (!geoData.results || geoData.results.length === 0) return null;
+    if (!geoData.results || geoData.results.length === 0) return Err('not-found');
 
     const { latitude, longitude, name } = geoData.results[0];
 
@@ -561,10 +581,10 @@ export class WeatherWidget extends HTMLElement {
     const daily = 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset';
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=${current}&hourly=${hourly}&daily=${daily}&timezone=auto&forecast_days=7${tempUnitParam}${windUnitParam}${precipUnitParam}`;
     const weatherRes = await fetch(weatherUrl, { signal });
-    if (!weatherRes.ok) return null;
+    if (!weatherRes.ok) return Err('http');
 
     const weatherData = await weatherRes.json();
-    if (!weatherData.current) return null;
+    if (!weatherData.current) return Err('http');
 
     const c = weatherData.current;
     const condition = mapWmoCodeToCondition(c.weather_code);
@@ -595,7 +615,7 @@ export class WeatherWidget extends HTMLElement {
       sunset: daily_.sunset ? daily_.sunset[i] : null,
     }));
 
-    return {
+    return Ok({
       temp: Math.round(c.temperature_2m),
       condition,
       city: name || city,
@@ -615,14 +635,18 @@ export class WeatherWidget extends HTMLElement {
       sunset: forecast[0] ? forecast[0].sunset : null,
       hourly: hourlyForecast,
       forecast,
-    };
+    });
   }
 
   async fetchOpenWeatherMap(city, apiKey, units = 'metric', signal) {
     const encCity = encodeURIComponent(city);
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encCity}&units=${units}&appid=${apiKey}`;
     const response = await fetch(url, { signal });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (response.status === 401) return Err('bad-key');
+      if (response.status === 404) return Err('not-found');
+      return Err('http');
+    }
 
     const data = await response.json();
 
@@ -632,7 +656,7 @@ export class WeatherWidget extends HTMLElement {
     const forecast = forecastData ? this.aggregateOwmForecast(forecastData, units) : [];
     const hourly = forecastData ? this.aggregateOwmHourly(forecastData) : [];
 
-    return {
+    return Ok({
       temp: Math.round(data.main.temp),
       condition: data.weather && data.weather[0] ? data.weather[0].main : 'Clear',
       city: data.name,
@@ -652,7 +676,7 @@ export class WeatherWidget extends HTMLElement {
       sunset: data.sys && data.sys.sunset ? owmLocalTime(data.sys.sunset, data.timezone || 0) : null,
       hourly,
       forecast,
-    };
+    });
   }
 
   aggregateOwmHourly(data) {
@@ -704,38 +728,41 @@ export class WeatherWidget extends HTMLElement {
       });
   }
 
-  async fetchWeatherStaleWhileRevalidate(force = false) {
+  async fetchWeatherStaleWhileRevalidate() {
     const query = this.getQuery();
     const { provider, city, units, apiKey } = query;
 
     if (query.needsKey) return;
 
+    const seq = ++this.requestSeq;
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
+    const signal = controller ? controller.signal : undefined;
 
+    let result;
     try {
-      let weatherRecord = null;
-      if (provider === 'openmeteo') {
-        weatherRecord = await this.fetchOpenMeteo(city, units, controller ? controller.signal : undefined);
-      } else {
-        weatherRecord = await this.fetchOpenWeatherMap(city, apiKey, units, controller ? controller.signal : undefined);
-      }
-
-      if (timeoutId) clearTimeout(timeoutId);
-
-      if (weatherRecord) {
-        this.storage.set('weather:cache', { query: { provider, city, units }, reading: weatherRecord });
-        this.fetchState = 'ok';
-      } else {
-        this.fetchState = 'error';
-      }
+      result = provider === 'openmeteo'
+        ? await this.fetchOpenMeteo(city, units, signal)
+        : await this.fetchOpenWeatherMap(city, apiKey, units, signal);
     } catch (err) {
-      // Keep showing the stale cache; the readout marks the update as failed.
+      result = Err(err && err.name === 'AbortError' ? 'timeout' : 'network');
+    } finally {
       if (timeoutId) clearTimeout(timeoutId);
-      this.fetchState = 'error';
+    }
+
+    // A newer fetch (settings change, Retry) owns the cache and status now.
+    if (seq !== this.requestSeq) return;
+
+    if (result._tag === 'Ok') {
+      this.storage.set('weather:cache', { query: { provider, city, units }, reading: result.value });
+      this.status = { kind: 'ok' };
+    } else {
+      // Keep showing a matching stale cache; the readout marks the update as failed.
+      this.status = { kind: 'error', reason: result.error.reason };
     }
     if (!this.isSetupOpen) this.render();
   }
+
 }
 
 if (typeof customElements !== 'undefined' && customElements.define) {

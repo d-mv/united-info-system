@@ -261,7 +261,7 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 3. On mount, render the last-known reading from `dashboard:weather:cache` immediately (stale-while-revalidate). The cache is stored as `{ query: {provider, city, units}, reading }` and is shown only when its query matches the current settings (city compared case-insensitively); otherwise the widget shows Loading until the new fetch lands. `resolveWeatherQuery()` applies every settings default in one place (city default comes from `DEFAULT_CONFIG`).
 4. Fetch in the background with a short timeout (~3s) using `AbortController`.
 5. On success: update cache + DOM.
-6. On failure/timeout: leave the stale reading visible with its "As of [time]" note plus "Update failed" — never a blocking spinner. With no cache at all, show "Weather unavailable" and a Retry button. OpenWeatherMap without a key shows a prompt to open setup.
+6. On failure/timeout: leave the stale reading visible with its "As of [time]" note plus "Update failed" — never a blocking spinner. With no cache at all, say why: "City not found" or "API key rejected" (with Open setup), otherwise "Weather unavailable" (with Retry). OpenWeatherMap without a key shows a prompt to open setup. Adapters return tagged results (`{ _tag: 'Ok', value }` / `{ _tag: 'Err', error: { reason } }`), and only the latest request (a sequence number) may write the cache and status, so a slow older fetch can't overwrite newer settings.
 7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`. The setup dialog edits provider, city and API key; units come from config (default `metric`) and have no selector yet.
 
 

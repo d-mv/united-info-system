@@ -353,3 +353,52 @@ test('isDaytime compares the time of day, so tomorrow morning is day', async () 
   assert.strictEqual(w.isDaytime('2026-08-05T08:00', sunrise, sunset), true, 'next morning');
   assert.strictEqual(w.isDaytime('2026-08-05T03:00', sunrise, sunset), false, 'next night');
 });
+
+test('WeatherWidget says why a fetch failed', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const cases = [
+    [{ provider: 'openmeteo', city: 'Nowhere' }, async () => ({ ok: true, json: async () => ({ results: [] }) }), 'City not found'],
+    [{ provider: 'openweathermap', apiKey: 'bad', city: 'Paris' }, async () => ({ ok: false, status: 401 }), 'API key rejected'],
+    [{ provider: 'openweathermap', apiKey: 'k', city: 'Atlantis' }, async () => ({ ok: false, status: 404 }), 'City not found'],
+    [{ provider: 'openmeteo', city: 'Porto' }, async () => ({ ok: false, status: 500 }), 'Weather unavailable'],
+    [{ provider: 'openmeteo', city: 'Porto' }, async () => { throw new TypeError('Failed to fetch'); }, 'Weather unavailable'],
+  ];
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [secrets, fake, message] of cases) {
+      const { widget } = makeWidget(WeatherWidget, { units: 'metric', ...secrets });
+      globalThis.fetch = fake;
+      await widget.fetchWeatherStaleWhileRevalidate();
+      assert.ok(widget.innerHTML.includes(message), `${secrets.city}: ${message}`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('WeatherWidget drops a fetch that finishes after a newer one', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'London', units: 'metric' });
+  const releases = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (url) => {
+    const respond = url.includes('geocoding')
+      ? { ok: true, json: async () => ({ results: [{ latitude: 1, longitude: 2, name: decodeURIComponent(url.match(/name=([^&]+)/)[1]) }] }) }
+      : { ok: true, json: async () => ({ current: { time: '2026-08-04T12:00', temperature_2m: 10, weather_code: 0 } }) };
+    // Only London's geocoding call is held back.
+    if (url.includes('name=London')) return new Promise(resolve => releases.push(() => resolve(respond)));
+    return Promise.resolve(respond);
+  };
+  try {
+    const older = widget.fetchWeatherStaleWhileRevalidate();
+    widget.configManager.setSecret('weather', { city: 'Oslo' });
+    const newer = widget.fetchWeatherStaleWhileRevalidate();
+    await newer;
+    releases.forEach(release => release());
+    await older;
+    assert.strictEqual(readCache().query.city, 'Oslo', 'the older London response did not overwrite Oslo');
+    assert.ok(widget.innerHTML.includes('Oslo'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
