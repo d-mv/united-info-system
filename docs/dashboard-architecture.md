@@ -141,7 +141,7 @@ This is CSS Grid with unit-based placement, not true masonry (masonry auto-packs
 }
 ```
 
-`core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. It re-renders the whole shell whenever the config changes.
+`core/grid.js` reads the enabled modules from `dashboard:config`, renders a skeleton cell per module with `grid-column` / `grid-row` set inline, then swaps in the real element once its module has loaded. It re-renders the shell only when the layout part of the config (`grid` and `modules`) changes. Widget settings live in the same key (`secrets`), so widgets that have settings subscribe to the config themselves (the weather widget refetches when its provider, city or key changes).
 
 **Current gap:** `grid.js` intends to set `--grid-cols`, `--cell-size` and `--module-padding` from `config.grid`, but assigns them via `style['--x']`, which browsers ignore. The effective values are the defaults in `core/theme.css` (12 columns, 100px cells). The fix is `style.setProperty()`. The grid is also not responsive on narrow screens yet.
 

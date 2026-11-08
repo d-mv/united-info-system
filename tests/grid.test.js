@@ -92,3 +92,52 @@ test('GridEngine initializes grid properties and mounts module elements into she
   assert.strictEqual(clockEl.style['grid-column'], '1 / span 2');
   assert.strictEqual(clockEl.style['grid-row'], '1 / span 1');
 });
+
+function makeEngine() {
+  const shell = new MockElement('div');
+  const configManager = new ConfigManager({
+    storage: makeStorage({
+      config: {
+        version: CONFIG_VERSION,
+        grid: { columns: 12, cellSize: 100, padding: 20 },
+        modules: [
+          { id: 'clock', enabled: true, cols: 2, rows: 2, col: 1, row: 1 },
+          { id: 'weather', enabled: true, cols: 2, rows: 2, col: 1, row: 3 }
+        ],
+        secrets: { weather: { provider: 'openmeteo', apiKey: '', city: 'Porto', units: 'metric' } }
+      }
+    })
+  });
+  const loaded = [];
+  const loader = async (id) => { loaded.push(id); return { success: true, id, type: 'widget' }; };
+  const engine = new GridEngine({ shellElement: shell, configManager, loader });
+  return { shell, configManager, engine, loaded };
+}
+
+test('GridEngine keeps mounted modules when only widget settings change', async () => {
+  const { shell, configManager, engine, loaded } = makeEngine();
+  await engine.init();
+  await flush();
+  const before = [...shell.children];
+
+  configManager.setSecret('weather', { city: 'Oslo' });
+  await flush();
+
+  assert.strictEqual(loaded.length, 2, 'no module is reloaded');
+  assert.deepStrictEqual(shell.children, before, 'the same elements stay mounted');
+  engine.destroy();
+});
+
+test('GridEngine re-renders when the layout changes', async () => {
+  const { shell, configManager, engine } = makeEngine();
+  await engine.init();
+  await flush();
+
+  const modules = configManager.get().modules.map(m => (m.id === 'weather' ? { ...m, enabled: false } : m));
+  configManager.update({ modules });
+  await flush();
+
+  assert.strictEqual(shell.children.length, 1);
+  assert.strictEqual(shell.children[0].dataset.module, 'clock');
+  engine.destroy();
+});

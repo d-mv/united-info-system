@@ -204,3 +204,57 @@ test('WeatherWidget fetches full current conditions and forecast from OpenWeathe
   }
 });
 
+
+// Records requested URLs; geocoding answers with the asked-for city, forecast with a minimal reading.
+function stubWeatherFetch() {
+  const urls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    urls.push(url);
+    if (url.includes('geocoding-api.open-meteo.com')) {
+      const name = decodeURIComponent(url.match(/name=([^&]+)/)[1]);
+      return { ok: true, json: async () => ({ results: [{ latitude: 1, longitude: 2, name }] }) };
+    }
+    return { ok: true, json: async () => ({ current: { time: '2026-08-04T12:00', temperature_2m: 10, weather_code: 0 } }) };
+  };
+  return { urls, restore: () => { globalThis.fetch = original; } };
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('WeatherWidget refetches when its settings change in another tab', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { writeFromOtherTab } = await import('./helpers/fake-browser.js');
+  const { widget } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'London', units: 'metric' });
+  const net = stubWeatherFetch();
+  try {
+    widget.connectedCallback();
+    await settle();
+    const config = widget.configManager.get();
+    writeFromOtherTab('config', { ...config, secrets: { weather: { ...config.secrets.weather, city: 'Oslo' } } });
+    await settle();
+    assert.ok(net.urls.some(u => u.includes('name=Oslo')), 'fetched the new city');
+    assert.ok(widget.innerHTML.includes('Oslo'));
+  } finally {
+    net.restore();
+    widget.disconnectedCallback();
+  }
+});
+
+test('WeatherWidget fetches once per setup save', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'London', units: 'metric' });
+  const net = stubWeatherFetch();
+  try {
+    widget.connectedCallback();
+    await settle();
+    const inputs = { '#weather-provider': { value: 'openmeteo' }, '#weather-city': { value: 'Oslo' }, '#weather-apikey': { value: '' } };
+    widget.querySelector = (sel) => inputs[sel] || null;
+    net.urls.length = 0;
+    widget.saveSetup();
+    await settle();
+    assert.strictEqual(net.urls.filter(u => u.includes('geocoding')).length, 1, 'one fetch for the new settings');
+  } finally {
+    net.restore();
+    widget.disconnectedCallback();
+  }
+});

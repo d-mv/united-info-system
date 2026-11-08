@@ -63,10 +63,34 @@ export class WeatherWidget extends HTMLElement {
     this.isSetupOpen = false;
     // 'loading' | 'ok' | 'error' — drives the empty/error states when there is no cache.
     this.fetchState = 'loading';
+    this.unsubscribe = null;
+    this.settingsKey = null;
   }
 
   connectedCallback() {
+    this.settingsKey = JSON.stringify(this.getSecrets());
+    // The grid no longer remounts widgets on config writes, so follow our own
+    // settings here (same tab and other tabs).
+    if (this.configManager.subscribe) {
+      this.unsubscribe = this.configManager.subscribe(() => this.onSettingsChange());
+    }
     this.render();
+    this.fetchWeatherStaleWhileRevalidate();
+  }
+
+  disconnectedCallback() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+  }
+
+  onSettingsChange() {
+    const next = JSON.stringify(this.getSecrets());
+    if (next === this.settingsKey) return;
+    this.settingsKey = next;
+    this.fetchState = 'loading';
+    if (!this.isSetupOpen) this.render();
     this.fetchWeatherStaleWhileRevalidate();
   }
 
@@ -431,10 +455,13 @@ export class WeatherWidget extends HTMLElement {
     const city = cityInput ? cityInput.value.trim() : 'London';
     const apiKey = keyInput ? keyInput.value.trim() : '';
 
+    const before = this.settingsKey;
+    // A real change is picked up by onSettingsChange, which refetches.
     this.configManager.setSecret('weather', { provider, city, apiKey });
-    this.fetchState = 'loading';
+    const unchanged = this.settingsKey === before;
+    if (unchanged) this.fetchState = 'loading';
     this.closeSetup();
-    this.fetchWeatherStaleWhileRevalidate(true);
+    if (unchanged) this.fetchWeatherStaleWhileRevalidate(true);
   }
 
   bindSetupDialog() {

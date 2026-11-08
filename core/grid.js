@@ -1,12 +1,17 @@
 import { configManager } from './config.js';
 import { loadModule } from './registry.js';
 
+// The part of the config the grid draws. Widget settings live in the same
+// config key but must not tear down the dashboard when they change.
+const layoutOf = (config) => JSON.stringify({ grid: config.grid, modules: config.modules });
+
 export class GridEngine {
   constructor(options = {}) {
     this.shellElement = options.shellElement || (typeof document !== 'undefined' ? document.getElementById('shell') : null);
     this.configManager = options.configManager || configManager;
     this.loader = options.loader || loadModule;
     this.unsubscribe = null;
+    this.renderedLayout = null;
   }
 
   async init() {
@@ -15,8 +20,8 @@ export class GridEngine {
     this.renderGrid();
 
     if (this.configManager.subscribe) {
-      this.unsubscribe = this.configManager.subscribe(() => {
-        this.renderGrid();
+      this.unsubscribe = this.configManager.subscribe((config) => {
+        if (layoutOf(config) !== this.renderedLayout) this.renderGrid();
       });
     }
   }
@@ -25,6 +30,7 @@ export class GridEngine {
     if (!this.shellElement) return;
 
     const config = this.configManager.get();
+    this.renderedLayout = layoutOf(config);
     const gridOpts = config.grid || { columns: 8, cellSize: 100, padding: 20 };
 
     this.shellElement.style['--grid-cols'] = String(gridOpts.columns);
