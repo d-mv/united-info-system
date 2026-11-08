@@ -9,7 +9,7 @@
 - **Clock** (`<app-clock>`): current time, a daily alarm and a countdown timer with presets. Both survive reloads and stay in sync across tabs. The Alarm row shows time left until it rings. When one goes off, the clock shows a Dismiss banner, beeps for up to a minute and sends a browser notification. Sound needs one click on the page first (browser autoplay rules); notification permission is asked the first time you set an alarm or start a timer.
 - **Weather** (`<widget-weather>`): current conditions and forecast from Open-Meteo (default, free, no API key) or OpenWeatherMap (needs an API key). The setup dialog picks provider, city, units and key. The last reading is cached and shown immediately on load, and refreshed once it is 15 minutes old (also while the page stays open); if a refresh fails, it stays visible marked "Update failed". Failures say why (city not found, API key rejected, unavailable).
 - **Todo** (`<app-todo>`): add, edit, delete and complete tasks, with an optional due date (overdue dates show in the accent color). Reorder by dragging a row, or focus its grip (⋮⋮) and press ↑/↓. Mark any number of tasks as in progress. Completed tasks are hidden by default; the "Completed · N" row at the bottom shows or hides them.
-- **Bookmarks** (`<app-bookmarks>`): add, edit and delete links.
+- **Bookmarks** (`<app-bookmarks>`): add, edit and delete links, optionally in named groups (ungrouped links come first). Each link shows the site's `/favicon.ico` (a letter when there is none). Keys `1`–`9` open the first nine links in a new tab (not while typing or when a dialog is open). **Import** reads a bookmarks HTML file exported from Chrome, Firefox or Safari; folders become groups and links already saved are skipped.
 
 ## Shell
 
@@ -17,7 +17,7 @@
 - **Config without setup**: on first open the default config (`dashboard:config`) is written to `localStorage`. Nothing is fetched to boot.
 - **Cross-tab sync**: changes in one tab show up in other open tabs via the `storage` event.
 - **Expand**: each module has a zoom button (shown on hover or focus, always on touch screens) that expands it to full page, using `document.startViewTransition` where supported. Only one module is expanded at a time; the rest of the page is inert while it is, and `Escape` collapses it and returns focus to the button.
-- **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests.
+- **Theme**: light and dark follow the OS setting (`prefers-color-scheme`). Fonts are self-hosted, so the only network calls are weather requests and bookmark favicons.
 
 ---
 
@@ -53,7 +53,7 @@ Everything lives in the browser's `localStorage` under `dashboard:` keys:
 | `dashboard:weather:cache` | Last weather reading and the provider, city and units it was fetched for (shown only while those match the settings). |
 | `dashboard:app:todo` | Tasks in display order, with done and in-progress flags and an optional `due` date (`YYYY-MM-DD`). |
 | `dashboard:app:todo:view` | Todo view preference (`showCompleted`). |
-| `dashboard:app:bookmarks` | Saved links. |
+| `dashboard:app:bookmarks` | Saved links (`title`, `url`, optional `group`). |
 
 When the default module layout changes, `CONFIG_VERSION` in `core/config.js` is bumped; older saved configs get the new layout but keep enabled flags, grid settings and weather settings (v3 resets grid settings from older versions, which were never applied).
 

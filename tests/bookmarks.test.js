@@ -108,3 +108,57 @@ test('BookmarksApp keeps an inline edit, and ends it if the bookmark is deleted 
   assert.ok(app.innerHTML.includes('Two'));
   app.disconnectedCallback();
 });
+
+test('BookmarksApp stores a group and shows group headings, ungrouped first', async () => {
+  const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
+  const app = new BookmarksApp();
+  app.storage = makeStorage({ 'app:bookmarks': [{ id: 'b1', title: 'Loose', url: 'https://loose.dev' }] });
+  app.addBookmark({ title: 'Work site', url: 'work.dev', group: ' Work ' });
+  const stored = app.storage.get('app:bookmarks');
+  assert.strictEqual(stored[0].group, 'Work', 'group is trimmed');
+
+  app.updateBookmark('b1', { title: 'Loose', url: 'https://loose.dev', group: 'Fun' });
+  assert.strictEqual(app.storage.get('app:bookmarks').find(b => b.id === 'b1').group, 'Fun');
+  app.updateBookmark('b1', { title: 'Loose', url: 'https://loose.dev', group: '' });
+  assert.strictEqual(app.storage.get('app:bookmarks').find(b => b.id === 'b1').group, undefined, 'empty group removes it');
+
+  app.connectedCallback();
+  assert.ok(app.innerHTML.includes('class="bookmark-group__name'));
+  assert.ok(app.innerHTML.indexOf('Loose') < app.innerHTML.indexOf('>Work<'), 'ungrouped before groups');
+  app.disconnectedCallback();
+});
+
+test('BookmarksApp opens the Nth bookmark on keys 1-9, not while typing', async () => {
+  const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
+  const app = new BookmarksApp();
+  const list = Array.from({ length: 11 }, (_, i) => ({ id: `b${i}`, title: `Site ${i}`, url: `https://s${i}.dev` }));
+  app.storage = makeStorage({ 'app:bookmarks': list });
+  app.render();
+  assert.strictEqual((app.innerHTML.match(/class="bookmark-key"/g) || []).length, 9, 'hints for the first nine only');
+
+  const opened = [];
+  globalThis.window.open = (url) => { opened.push(url); };
+  const key = (k, extra = {}) => ({ key: k, target: { tagName: 'BODY' }, preventDefault() {}, ...extra });
+  app.onShortcut(key('3'));
+  app.onShortcut(key('3', { target: { tagName: 'INPUT' } }));
+  app.onShortcut(key('3', { target: { tagName: 'DIV', isContentEditable: true } }));
+  app.onShortcut(key('3', { metaKey: true }));
+  assert.deepStrictEqual(opened, ['https://s2.dev']);
+});
+
+test('BookmarksApp imports a browser bookmarks file and reports the result', async () => {
+  const { BookmarksApp } = await import('../apps/bookmarks/bookmarks-app.js');
+  const app = new BookmarksApp();
+  app.storage = makeStorage({ 'app:bookmarks': [{ id: 'b1', title: 'A', url: 'https://a.dev' }] });
+  app.connectedCallback();
+  const result = app.importText('<DL><p><DT><A HREF="https://a.dev/">A</A><DT><H3>G</H3><DL><p><DT><A HREF="https://b.dev">B</A></DL><p></DL>');
+  assert.deepStrictEqual(result, { added: 1, skipped: 1 });
+  const stored = app.storage.get('app:bookmarks');
+  assert.deepStrictEqual(stored.map(b => b.title), ['A', 'B']);
+  assert.strictEqual(stored[1].group, 'G');
+  assert.ok(app.innerHTML.includes('Imported 1'), 'result shown');
+
+  app.importText('nothing here');
+  assert.ok(app.innerHTML.includes('No bookmarks found'), 'empty file explained');
+  app.disconnectedCallback();
+});

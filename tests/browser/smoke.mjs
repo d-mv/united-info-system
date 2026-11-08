@@ -201,6 +201,33 @@ const checks = {
     assert(errors.length === 0, `page errors: ${errors}`);
   },
 
+  async 'bookmarks: import file, groups, 1-9 shortcut opens a tab'(browser) {
+    const { page, errors, close } = await freshPage(browser);
+    await page.route(/favicon\.ico$/, r => r.fulfill({ status: 404, body: '' }));
+    await page.setInputFiles('app-bookmarks .import-input', {
+      name: 'bookmarks.html', mimeType: 'text/html',
+      buffer: Buffer.from('<DL><p><DT><H3>Imported</H3><DL><p><DT><A HREF="https://imported.example">Imported one</A></DL><p></DL>'),
+    });
+    await page.waitForSelector('app-bookmarks .bookmark-group__name');
+    const notice = await page.textContent('app-bookmarks .bookmark-notice');
+    assert(/Imported 1/.test(notice), `notice: ${notice}`);
+
+    await page.click('body', { position: { x: 5, y: 890 } });
+    const popup = page.context().waitForEvent('page', { timeout: 2000 });
+    await page.keyboard.press('1');
+    const opened = await popup;
+    const url = opened.url();
+    await opened.close();
+    assert(/refactoringui\.com/.test(url), `1 opened ${url}`);
+
+    await page.click('app-todo .add-todo-input');
+    await page.keyboard.press('2');
+    const typed = await page.inputValue('app-todo .add-todo-input');
+    await close();
+    assert(typed === '2', 'digit typed into an input must not open a bookmark');
+    assert(errors.length === 0, `page errors: ${errors}`);
+  },
+
   async 'server refuses dotfiles and foreign Host headers'() {
     const git = await fetch(`${BASE}/.git/HEAD`);
     assert(git.status === 404, `.git/HEAD -> ${git.status}`);
