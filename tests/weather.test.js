@@ -470,3 +470,23 @@ test('WeatherWidget refreshes a reading that went stale while open, without hamm
     globalThis.fetch = originalFetch;
   }
 });
+
+test('Weather setup has a units selector and saves the choice', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget } = makeWidget(WeatherWidget, { provider: 'openmeteo', city: 'Porto', units: 'imperial' });
+  widget.openSetup();
+  assert.ok(widget.innerHTML.includes('id="weather-units"'));
+  assert.ok(/<option value="imperial" selected>/.test(widget.innerHTML), 'current units preselected');
+
+  const inputs = { '#weather-provider': { value: 'openmeteo' }, '#weather-city': { value: 'Porto' }, '#weather-apikey': { value: '' }, '#weather-units': { value: 'metric' } };
+  widget.querySelector = (sel) => inputs[sel] || null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('offline'); };
+  try {
+    widget.saveSetup();
+    await settle();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.strictEqual(widget.configManager.getSecret('weather').units, 'metric');
+});

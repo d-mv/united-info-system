@@ -224,7 +224,7 @@ Since this may run on protected/air-gapped networks, weather must fail quietly:
 4. Fetch in the background only when the reading is older than 15 minutes (or there is none), with a ~3s `AbortController` timeout per request. While the page is open, a once-a-minute check refetches stale readings; after a failure it waits 15 minutes before trying again.
 5. On success: update cache + DOM.
 6. On failure/timeout: leave the stale reading visible with its "As of [time]" note plus "Update failed" — never a blocking spinner. With no cache at all, say why: "City not found" or "API key rejected" (with Open setup), otherwise "Weather unavailable" (with Retry). OpenWeatherMap without a key shows a prompt to open setup. Adapters return tagged results (`{ _tag: 'Ok', value }` / `{ _tag: 'Err', error: { reason } }`), and only the latest request (a sequence number) may write the cache and status, so a slow older fetch can't overwrite newer settings.
-7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`. The setup dialog edits provider, city and API key; units come from config (default `metric`) and have no selector yet.
+7. Secrets & preferences (provider, city, units, apiKey) are persisted in `dashboard:config` via `ConfigManager`. The setup dialog edits provider, city, units (default `metric`) and API key.
 
 
 ---

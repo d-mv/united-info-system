@@ -538,6 +538,13 @@ export class WeatherWidget extends HTMLElement {
             <input type="text" id="weather-city" class="input" autofocus placeholder="${escapeHtml(DEFAULT_WEATHER.city)}" value="${escapeHtml(query.city)}">
           </label>
           <label class="field">
+            <span class="label">Units</span>
+            <select id="weather-units" class="select">
+              <option value="metric" ${query.units === 'metric' ? 'selected' : ''}>Metric (°C, km/h)</option>
+              <option value="imperial" ${query.units === 'imperial' ? 'selected' : ''}>Imperial (°F, mph)</option>
+            </select>
+          </label>
+          <label class="field">
             <span class="label">API key</span>
             <input type="password" id="weather-apikey" class="input" autocomplete="off" value="${escapeHtml(query.apiKey)}">
             <p class="hint">Only needed for OpenWeatherMap. Stored in this browser only.</p>
@@ -555,15 +562,17 @@ export class WeatherWidget extends HTMLElement {
     const providerInput = this.querySelector('#weather-provider');
     const cityInput = this.querySelector('#weather-city');
     const keyInput = this.querySelector('#weather-apikey');
+    const unitsInput = this.querySelector('#weather-units');
 
     const current = this.getQuery();
     const provider = providerInput ? providerInput.value : current.provider;
     const city = cityInput ? cityInput.value.trim() : current.city;
     const apiKey = keyInput ? keyInput.value.trim() : current.apiKey;
+    const units = unitsInput ? unitsInput.value : current.units;
 
     const before = this.settingsKey;
     // A real change is picked up by onSettingsChange, which refetches.
-    this.configManager.setSecret('weather', { provider, city, apiKey });
+    this.configManager.setSecret('weather', { provider, city, units, apiKey });
     const unchanged = this.settingsKey === before;
     if (unchanged) this.status = { kind: 'loading' };
     this.closeSetup();
