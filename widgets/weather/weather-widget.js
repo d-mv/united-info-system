@@ -27,6 +27,17 @@ function owmWind(speed, units) {
   return Math.round(units === 'imperial' ? speed : speed * 3.6);
 }
 
+// OWM sends UTC instants plus the city's UTC offset (seconds). Convert to the
+// city's wall-clock time 'YYYY-MM-DDTHH:MM', the same form Open-Meteo returns.
+function owmLocalTime(unixSeconds, tzSeconds = 0) {
+  return new Date((unixSeconds + tzSeconds) * 1000).toISOString().slice(0, 16);
+}
+
+// Forecast entries carry `dt`; older fixtures only have the UTC `dt_txt`.
+function owmEntrySeconds(entry) {
+  return entry.dt != null ? entry.dt : Date.parse(`${entry.dt_txt.replace(' ', 'T')}Z`) / 1000;
+}
+
 export function mapWmoCodeToCondition(code) {
   if (code === 0) return 'Clear';
   if (code === 1 || code === 2) return 'Partly Cloudy';
@@ -632,8 +643,8 @@ export class WeatherWidget extends HTMLElement {
       precipitation: null,
       visibility: data.visibility != null ? data.visibility : null,
       uvIndex: null,
-      sunrise: data.sys && data.sys.sunrise ? new Date(data.sys.sunrise * 1000).toISOString() : null,
-      sunset: data.sys && data.sys.sunset ? new Date(data.sys.sunset * 1000).toISOString() : null,
+      sunrise: data.sys && data.sys.sunrise ? owmLocalTime(data.sys.sunrise, data.timezone || 0) : null,
+      sunset: data.sys && data.sys.sunset ? owmLocalTime(data.sys.sunset, data.timezone || 0) : null,
       hourly,
       forecast,
     };
@@ -642,8 +653,9 @@ export class WeatherWidget extends HTMLElement {
   aggregateOwmHourly(data) {
     if (!data || !Array.isArray(data.list)) return [];
 
+    const tz = (data.city && data.city.timezone) || 0;
     return data.list.slice(0, 8).map((entry) => ({
-      time: entry.dt_txt.replace(' ', 'T').slice(0, 16),
+      time: owmLocalTime(owmEntrySeconds(entry), tz),
       temp: Math.round(entry.main.temp),
       condition: entry.weather && entry.weather[0] ? entry.weather[0].main : 'Clear',
       precipitationProbability: entry.pop != null ? Math.round(entry.pop * 100) : null,
@@ -653,9 +665,11 @@ export class WeatherWidget extends HTMLElement {
   aggregateOwmForecast(data, units = 'metric') {
     if (!data || !Array.isArray(data.list)) return [];
 
+    const tz = (data.city && data.city.timezone) || 0;
+    const localHour = (e) => Number(owmLocalTime(owmEntrySeconds(e), tz).slice(11, 13));
     const byDate = new Map();
     for (const entry of data.list) {
-      const date = entry.dt_txt.slice(0, 10);
+      const date = owmLocalTime(owmEntrySeconds(entry), tz).slice(0, 10);
       if (!byDate.has(date)) byDate.set(date, []);
       byDate.get(date).push(entry);
     }
@@ -667,7 +681,8 @@ export class WeatherWidget extends HTMLElement {
         const tempMin = Math.min(...entries.map((e) => e.main.temp_min));
         const precipitationProbability = Math.round(Math.max(...entries.map((e) => e.pop || 0)) * 100);
         const windSpeedMax = owmWind(Math.max(...entries.map((e) => (e.wind ? e.wind.speed : 0))), units);
-        const midday = entries.find((e) => e.dt_txt.includes('12:00:00')) || entries[Math.floor(entries.length / 2)];
+        // The entry closest to local noon describes the day.
+        const midday = entries.reduce((best, e) => (Math.abs(localHour(e) - 12) < Math.abs(localHour(best) - 12) ? e : best));
 
         return {
           date,

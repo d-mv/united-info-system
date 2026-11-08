@@ -319,3 +319,26 @@ test('OpenWeatherMap imperial wind stays in mph', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('OpenWeatherMap times are converted to the city local clock', async () => {
+  const { WeatherWidget } = await import('../widgets/weather/weather-widget.js');
+  const { widget, readCache } = makeWidget(WeatherWidget, { provider: 'openweathermap', apiKey: 'k', city: 'New York', units: 'metric' });
+  const utc = (iso) => Date.parse(iso) / 1000;
+  const tz = -4 * 3600; // New York in August
+  const entry = (iso, temp) => ({ dt: utc(iso), dt_txt: iso.replace('T', ' ').slice(0, 19), main: { temp, temp_min: temp, temp_max: temp }, weather: [{ main: 'Clear' }], pop: 0, wind: { speed: 1 } });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => (url.includes('/forecast')
+    ? { ok: true, json: async () => ({ city: { timezone: tz }, list: [entry('2026-08-05T00:00:00Z', 20), entry('2026-08-05T03:00:00Z', 18), entry('2026-08-05T15:00:00Z', 25)] }) }
+    : { ok: true, json: async () => ({ timezone: tz, main: { temp: 20 }, weather: [{ main: 'Clear' }], sys: { sunrise: utc('2026-08-04T10:10:00Z'), sunset: utc('2026-08-05T00:05:00Z') }, name: 'New York' }) });
+  try {
+    await widget.fetchWeatherStaleWhileRevalidate();
+    const r = readCache().reading;
+    assert.strictEqual(r.hourly[0].time, '2026-08-04T20:00', '00:00 UTC is 20:00 the evening before in New York');
+    assert.strictEqual(r.sunrise, '2026-08-04T06:10');
+    assert.strictEqual(r.sunset, '2026-08-04T20:05');
+    assert.deepStrictEqual(r.forecast.map(d => d.date), ['2026-08-04', '2026-08-05'], 'days follow the local date');
+    assert.strictEqual(r.forecast[1].tempMax, 25);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
